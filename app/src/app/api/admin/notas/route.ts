@@ -2,24 +2,30 @@ import { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 
-// GET: Listar notas de un paciente
+// GET: Listar notas (todas si no se especifica paciente_id)
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const paciente_id = searchParams.get('paciente_id');
     
-    if (!paciente_id) {
-      return NextResponse.json({ error: 'Falta paciente_id' }, { status: 400 });
+    let rows;
+    if (paciente_id) {
+      [rows] = await db.query(
+        `SELECT n.*, u.nombre as autor_nombre, u.apellido as autor_apellido
+         FROM notas_paciente n
+         JOIN usuarios u ON n.autor_id = u.id
+         WHERE n.paciente_id = ?
+         ORDER BY n.created_at DESC`,
+        [paciente_id]
+      );
+    } else {
+      [rows] = await db.query(
+        `SELECT n.*, u.nombre as autor_nombre, u.apellido as autor_apellido
+         FROM notas_paciente n
+         JOIN usuarios u ON n.autor_id = u.id
+         ORDER BY n.created_at DESC`
+      );
     }
-    
-    const [rows] = await db.query(
-      `SELECT n.*, u.nombre as autor_nombre, u.apellido as autor_apellido
-       FROM notas_paciente n
-       JOIN usuarios u ON n.autor_id = u.id
-       WHERE n.paciente_id = ?
-       ORDER BY n.created_at DESC`,
-      [paciente_id]
-    );
     
     return NextResponse.json({ notas: rows });
   } catch (e: any) {

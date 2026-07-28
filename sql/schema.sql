@@ -218,5 +218,27 @@ CREATE TABLE reglas_clinica (
   seccion VARCHAR(50) NOT NULL,
   titulo VARCHAR(200) NOT NULL,
   items JSON NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  actualizado_por INT,
+  actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (actualizado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: notas_paciente
+-- ============================================================
+CREATE TABLE notas_paciente (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  paciente_id INT NOT NULL,
+  asignacion_id INT,
+  autor_id INT NOT NULL,
+  autor_rol VARCHAR(50),
+  tipo VARCHAR(50) NOT NULL,
+  contenido TEXT NOT NULL,
+  calificacion INT,
+  paso_tratamiento VARCHAR(200),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE,
+  FOREIGN KEY (asignacion_id) REFERENCES asignaciones(id) ON DELETE SET NULL,
+  FOREIGN KEY (autor_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

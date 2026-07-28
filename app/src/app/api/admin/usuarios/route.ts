@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const rol = searchParams.get('rol');
     
-    let query = 'SELECT id, nombre, apellido, email, telefono, rol, activo, created_at, direccion, avatar_url FROM usuarios';
+    let query = 'SELECT id, nombre, apellido, email, telefono, rol, activo, created_at, avatar_url FROM usuarios';
     const params: any[] = [];
     
     if (rol) {
