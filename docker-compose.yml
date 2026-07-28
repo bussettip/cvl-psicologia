@@ -1,0 +1,40 @@
+services:
+  cvl-db:
+    image: mysql:8.0
+    container_name: cvl-psicologia-db-2
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-CVLpsicologia2026!}
+      MYSQL_DATABASE: cvl_psicologia
+    ports:
+      - "3310:3306"
+    volumes:
+      - cvl_mysql_data:/var/lib/mysql
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./sql/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  cvl-app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: cvl-psicologia-app-2
+    restart: unless-stopped
+    ports:
+      - "3210:3200"
+    environment:
+      DATABASE_HOST: cvl-db
+      DATABASE_USER: root
+      DATABASE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-CVLpsicologia2026!}
+      DATABASE_NAME: cvl_psicologia
+      DATABASE_PORT: 3306
+    depends_on:
+      cvl-db:
+        condition: service_healthy
+
+volumes:
+  cvl_mysql_data:
