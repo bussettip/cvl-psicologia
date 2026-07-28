@@ -184,3 +184,39 @@ CREATE INDEX idx_sesiones_estado ON sesiones(estado);
 CREATE INDEX idx_sesiones_fecha ON sesiones(fecha_programada);
 CREATE INDEX idx_alertas_resuelta ON alertas_desviacion(resuelta);
 CREATE INDEX idx_alertas_gravedad ON alertas_desviacion(gravedad);
+
+-- ============================================================
+-- TABLA: cobros
+-- ============================================================
+CREATE TABLE cobros (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  paciente_id INT,
+  tipo ENUM('sesion','taller','programa','otro') NOT NULL DEFAULT 'sesion',
+  concepto VARCHAR(255),
+  sesion_id INT DEFAULT NULL,
+  taller_id INT DEFAULT NULL,
+  monto DECIMAL(10,2) NOT NULL DEFAULT 750.00,
+  metodo_pago ENUM('efectivo','tarjeta_credito','tarjeta_debito','transferencia','otro') DEFAULT 'efectivo',
+  fecha DATE NOT NULL,
+  hora TIME DEFAULT NULL,
+  estado ENUM('pagado','pendiente','cancelado') DEFAULT 'pagado',
+  observaciones TEXT,
+  confirmado_psicologa BOOLEAN DEFAULT FALSE,
+  confirmado_psicologa_id INT DEFAULT NULL,
+  confirmado_psicologa_fecha DATETIME DEFAULT NULL,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: reglas_clinica
+-- ============================================================
+CREATE TABLE reglas_clinica (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  seccion VARCHAR(50) NOT NULL,
+  titulo VARCHAR(200) NOT NULL,
+  items JSON NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
