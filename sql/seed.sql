@@ -11,21 +11,21 @@ USE cvl_psicologia;
 -- ============================================================
 INSERT INTO usuarios (email, password_hash, nombre, apellido, telefono, rol) VALUES
 -- Líder
-('carmen.ruiz@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'Carmen', 'Ruiz', '555-0100', 'lider'),
+('carmen.ruiz@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'Carmen', 'Ruiz', '555-0100', 'lider'),
 -- Supervisores
-('roberto.martin@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'Roberto', 'Martín', '555-0101', 'supervisor'),
-('elena.vargas@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'Elena', 'Vargas', '555-0102', 'supervisor'),
+('roberto.martin@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'Roberto', 'Martín', '555-0101', 'supervisor'),
+('elena.vargas@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'Elena', 'Vargas', '555-0102', 'supervisor'),
 -- Psicólogas
-('ana.garcia@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'Ana', 'García', '555-0201', 'psicologa'),
-('maria.lopez@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'María', 'López', '555-0202', 'psicologa'),
-('laura.perez@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'Laura', 'Pérez', '555-0203', 'psicologa'),
-('jose.hernandez@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'José', 'Hernández', '555-0204', 'psicologa'),
-('sofia.morales@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'Sofía', 'Morales', '555-0205', 'psicologa'),
-('diego.ramirez@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'Diego', 'Ramírez', '555-0206', 'psicologa'),
-('valeria.torres@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'Valeria', 'Torres', '555-0207', 'psicologa'),
-('fernando.diaz@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'Fernando', 'Díaz', '555-0208', 'psicologa'),
-('camila.rios@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'Camila', 'Ríos', '555-0209', 'psicologa'),
-('pablo.silva@clinica.com', '$2b$10$YQ8GhN3VJzCbTOykMnOYUOEJpGbPdVX8hTZ6GQxK5dF7bV2cN3vKq', 'Pablo', 'Silva', '555-0210', 'psicologa');
+('ana.garcia@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'Ana', 'García', '555-0201', 'psicologa'),
+('maria.lopez@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'María', 'López', '555-0202', 'psicologa'),
+('laura.perez@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'Laura', 'Pérez', '555-0203', 'psicologa'),
+('jose.hernandez@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'José', 'Hernández', '555-0204', 'psicologa'),
+('sofia.morales@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'Sofía', 'Morales', '555-0205', 'psicologa'),
+('diego.ramirez@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'Diego', 'Ramírez', '555-0206', 'psicologa'),
+('valeria.torres@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'Valeria', 'Torres', '555-0207', 'psicologa'),
+('fernando.diaz@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'Fernando', 'Díaz', '555-0208', 'psicologa'),
+('camila.rios@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'Camila', 'Ríos', '555-0209', 'psicologa'),
+('pablo.silva@clinica.com', '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy', 'Pablo', 'Silva', '555-0210', 'psicologa');
 
 -- ============================================================
 -- PACIENTES (20 pacientes de ejemplo)
