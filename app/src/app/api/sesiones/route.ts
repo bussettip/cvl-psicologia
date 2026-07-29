@@ -41,29 +41,50 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { asignacion_id, fecha_programada, meta_id, nota_psicologa, paso_tratamiento, autor_id, autor_rol, paciente_id } = body;
-    
-    // Auto-calculate next session number
+
+    // Determine position based on fecha_programada order
+    const [beforeRows] = await pool.query(
+      'SELECT COUNT(*) as cnt FROM sesiones WHERE asignacion_id = ? AND fecha_programada <= ?',
+      [asignacion_id, fecha_programada]
+    ) as any[];
+    const beforeCount = beforeRows[0]?.cnt || 0;
+
+    // Shift existing sessions that have >= this position
+    await pool.query(
+      'UPDATE sesiones SET numero_sesion = numero_sesion + 1 WHERE asignacion_id = ? AND numero_sesion > ? ORDER BY numero_sesion DESC',
+      [asignacion_id, beforeCount]
+    );
+
+    const numSesion = beforeCount + 1;
+    const [result] = await pool.query(
+      `INSERT INTO sesiones (asignacion_id, numero_sesion, fecha_programada, meta_id, estado) 
+       VALUES (?, ?, ?, ?, 'programada')`,
+      [asignacion_id, numSesion, fecha_programada, meta_id || null]
+    );
+
+    // Renumber all sessions for this assignment to be sequential by fecha_programada
+    const [allSes] = await pool.query(
+      'SELECT id FROM sesiones WHERE asignacion_id = ? ORDER BY fecha_programada, id',
+      [asignacion_id]
+    ) as any[];
+    for (let i = 0; i < allSes.length; i++) {
+      await pool.query('UPDATE sesiones SET numero_sesion = ? WHERE id = ?', [i + 1, allSes[i].id]);
+    }
+
+    // Update sesion_actual in the assignment (highest number)
     const [maxRow] = await pool.query(
       'SELECT COALESCE(MAX(numero_sesion), 0) as max_num FROM sesiones WHERE asignacion_id = ?',
       [asignacion_id]
     ) as any[];
-    const nextNum = (maxRow[0]?.max_num || 0) + 1;
-
-    const [result] = await pool.query(
-      `INSERT INTO sesiones (asignacion_id, numero_sesion, fecha_programada, meta_id, estado) 
-       VALUES (?, ?, ?, ?, 'programada')`,
-      [asignacion_id, nextNum, fecha_programada, meta_id || null]
-    );
-    
-    // Update sesion_actual in the assignment
+    const maxNum = maxRow[0]?.max_num || 0;
     await pool.query(
       'UPDATE asignaciones SET sesion_actual = ? WHERE id = ?',
-      [nextNum, asignacion_id]
+      [maxNum, asignacion_id]
     );
 
     // If note is provided, save to patient history
     if (nota_psicologa && autor_id && paciente_id) {
-      const contenido = `Sesión #${nextNum} programada para ${fecha_programada}${nota_psicologa ? '\n' + nota_psicologa : ''}`;
+      const contenido = `Sesión #${numSesion} programada para ${fecha_programada}${nota_psicologa ? '\n' + nota_psicologa : ''}`;
       await pool.query(
         `INSERT INTO notas_paciente (paciente_id, asignacion_id, autor_id, autor_rol, tipo, contenido, paso_tratamiento)
          VALUES (?, ?, ?, ?, 'nota_psicologa', ?, ?)`,
@@ -71,7 +92,7 @@ export async function POST(request: Request) {
       );
     }
     
-    return NextResponse.json({ id: (result as any).insertId, numero_sesion: nextNum, message: 'Sesión creada' }, { status: 201 });
+    return NextResponse.json({ id: (result as any).insertId, numero_sesion: numSesion, message: 'Sesión creada' }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Error al crear sesión' }, { status: 500 });
   }
@@ -116,6 +137,6 @@ export async function PUT(request: Request) {
     
     return NextResponse.json({ message: 'Sesión actualizada' });
   } catch (error) {
-    return NextResponse.json({ error: 'Error al actualizar sesión' }, { status: 500 });
+    return NextResponse.json({ error: (error as any)?.message || 'Error al actualizar sesión' }, { status: 500 });
   }
 }

@@ -115,6 +115,10 @@ CREATE TABLE sesiones (
   desviacion BOOLEAN DEFAULT FALSE,
   motivo_desviacion TEXT,
   tipo_desviacion ENUM('retraso', 'salto_meta', 'repeticion', 'fuera_programa', 'ninguna') DEFAULT 'ninguna',
+  confirmada_psicologa BOOLEAN DEFAULT FALSE,
+  confirmada_fecha DATETIME DEFAULT NULL,
+  archivo_url VARCHAR(500) DEFAULT NULL,
+  archivo_nombre VARCHAR(255) DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (asignacion_id) REFERENCES asignaciones(id) ON DELETE CASCADE,
@@ -241,4 +245,23 @@ CREATE TABLE notas_paciente (
   FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE,
   FOREIGN KEY (asignacion_id) REFERENCES asignaciones(id) ON DELETE SET NULL,
   FOREIGN KEY (autor_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: calificaciones_psicologa
+-- ============================================================
+CREATE TABLE IF NOT EXISTS calificaciones_psicologa (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  psicologa_id INT NOT NULL,
+  supervisor_id INT NOT NULL,
+  asignacion_id INT,
+  paciente_id INT,
+  categoria VARCHAR(50) NOT NULL,
+  calificacion INT NOT NULL,
+  observaciones TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (psicologa_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (supervisor_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (asignacion_id) REFERENCES asignaciones(id) ON DELETE SET NULL,
+  FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -25,6 +25,10 @@ export default function PsicologaPage() {
   const [nuevaNota, setNuevaNota] = useState('');
   const [nuevaNotaTipo, setNuevaNotaTipo] = useState('nota_clinica');
   const [guardandoNota, setGuardandoNota] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [nuevaSesionPaciente, setNuevaSesionPaciente] = useState<number | null>(null);
+  const [nuevaSesionForm, setNuevaSesionForm] = useState({ fecha: '', temas: '', observaciones: '', notas: '', duracion: '50' });
+  const [guardandoNuevaSesion, setGuardandoNuevaSesion] = useState(false);
   const [confirmSesionId, setConfirmSesionId] = useState<number | null>(null);
   const [ingresos, setIngresos] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'pacientes' | 'sesiones'>('dashboard');
@@ -121,6 +125,7 @@ export default function PsicologaPage() {
       setHistorialSesiones([]);
       setHistorialNotas([]);
       setNuevaNota('');
+      setNuevaSesionPaciente(null);
       fetchAsignaciones(pacienteId);
     }
   };
@@ -235,6 +240,71 @@ export default function PsicologaPage() {
       loadData(user.id);
     } catch (e: any) { alert('Error: ' + e.message); }
     finally { setGuardandoSeccion(false); }
+  };
+
+  const crearNuevaSesion = async (paciente: any) => {
+    if (!nuevaSesionForm.fecha) { alert('Selecciona la fecha de la sesión'); return; }
+    setGuardandoNuevaSesion(true);
+    try {
+      let asigActiva = asignaciones && expandedPac === paciente.id ? asignaciones.find((a: any) => a.estado === 'en_curso') : null;
+      if (!asigActiva) {
+        const resPac = await fetch(`/api/pacientes/${paciente.id}`);
+        const pacData = await resPac.json();
+        asigActiva = (pacData.asignaciones || []).find((a: any) => a.estado === 'en_curso');
+      }
+      if (!asigActiva) {
+        alert('Este paciente no tiene un tratamiento activo. Asígnale un programa desde el panel de administración.');
+        setGuardandoNuevaSesion(false);
+        return;
+      }
+      const res = await fetch('/api/sesiones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asignacion_id: asigActiva.id,
+          fecha_programada: nuevaSesionForm.fecha,
+          paciente_id: paciente.id,
+          autor_id: user.id,
+          autor_rol: 'psicologa',
+          nota_psicologa: nuevaSesionForm.notas || null,
+          paso_tratamiento: null
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al crear sesión');
+
+      const sesionId = data.id;
+      const resUpdate = await fetch('/api/sesiones', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: sesionId,
+          fecha_real: nuevaSesionForm.fecha,
+          estado: 'completada',
+          duracion_minutos: parseInt(nuevaSesionForm.duracion) || 50,
+          temas_trabajados: nuevaSesionForm.temas || null,
+          observaciones_psicologa: nuevaSesionForm.observaciones || null,
+          desviacion: false,
+          autor_id: user.id,
+          autor_rol: 'psicologa',
+          paciente_id: paciente.id,
+          asignacion_id: asigActiva.id,
+          paso_tratamiento: null
+        })
+      });
+      const dataUpdate = await resUpdate.json();
+      if (!resUpdate.ok) throw new Error(dataUpdate.error || 'Error al actualizar sesión');
+
+      alert(`✅ Sesión #${data.numero_sesion} registrada y guardada correctamente`);
+      setNuevaSesionPaciente(null);
+      setNuevaSesionForm({ fecha: '', temas: '', observaciones: '', notas: '', duracion: '50' });
+      loadData(user.id);
+      if (expandedPac) fetchAsignaciones(expandedPac);
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    } finally {
+      setGuardandoNuevaSesion(false);
+    }
   };
 
   const getEstadoColor = (estado: string) => {
@@ -416,6 +486,11 @@ export default function PsicologaPage() {
 
         {activeTab === 'pacientes' && (
           <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="p-4 border-b border-gray-200">
+              <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                placeholder="🔍 Buscar paciente por nombre o motivo..."
+                className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -428,7 +503,11 @@ export default function PsicologaPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {pacientes.map((p) => (
+                {pacientes.filter(p => {
+                  if (!searchTerm) return true;
+                  const q = searchTerm.toLowerCase();
+                  return p.nombre?.toLowerCase().includes(q) || p.apellido?.toLowerCase().includes(q) || p.motivo_consulta?.toLowerCase().includes(q);
+                }).map((p) => (
                   <Fragment key={p.id}>
                     <tr className={`hover:bg-gray-50 ${expandedPac === p.id ? 'bg-indigo-50' : ''}`}>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -463,16 +542,85 @@ export default function PsicologaPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <button onClick={() => toggleExpand(p.id)}
-                          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                            expandedPac === p.id
-                              ? 'bg-indigo-700 text-white'
-                              : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                          }`}>
-                          {expandedPac === p.id ? 'Cerrar' : 'Ver Caso'}
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={() => toggleExpand(p.id)}
+                            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                              expandedPac === p.id
+                                ? 'bg-indigo-700 text-white'
+                                : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                            }`}>
+                            {expandedPac === p.id ? 'Cerrar' : 'Ver Caso'}
+                          </button>
+                          <button onClick={() => setNuevaSesionPaciente(nuevaSesionPaciente === p.id ? null : p.id)}
+                            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                              nuevaSesionPaciente === p.id
+                                ? 'bg-emerald-700 text-white'
+                                : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                            }`}>
+                            {nuevaSesionPaciente === p.id ? '✕ Cerrar' : '➕ Nueva Sesión'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
+
+                    {nuevaSesionPaciente === p.id && (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-4 bg-emerald-50/50">
+                          <div className="bg-white p-4 rounded-lg border-2 border-emerald-200">
+                            <h4 className="text-sm font-bold text-emerald-800 mb-3">📝 Registrar Nueva Sesión — {p.nombre} {p.apellido}</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                              <div>
+                                <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha *</label>
+                                <input type="date" value={nuevaSesionForm.fecha} onChange={e => setNuevaSesionForm({...nuevaSesionForm, fecha: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600 mb-1 block">Duración (min)</label>
+                                <input type="number" value={nuevaSesionForm.duracion} onChange={e => setNuevaSesionForm({...nuevaSesionForm, duracion: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+                              </div>
+                            </div>
+                            <div className="mb-3">
+                              <div className="flex items-center gap-2 mb-1">
+                                <label className="text-xs font-medium text-gray-600">Temas trabajados</label>
+                                <DictationButton onResult={(t) => setNuevaSesionForm({...nuevaSesionForm, temas: nuevaSesionForm.temas + t})} />
+                              </div>
+                              <textarea value={nuevaSesionForm.temas} onChange={e => setNuevaSesionForm({...nuevaSesionForm, temas: e.target.value})} rows={2}
+                                className="w-full px-3 py-2 border border-gray-300 rounded text-sm resize-none"
+                                placeholder="Trabajo en reestructuración cognitiva, identificación de pensamientos automáticos..." />
+                            </div>
+                            <div className="mb-3">
+                              <div className="flex items-center gap-2 mb-1">
+                                <label className="text-xs font-medium text-gray-600">Observaciones</label>
+                                <DictationButton onResult={(t) => setNuevaSesionForm({...nuevaSesionForm, observaciones: nuevaSesionForm.observaciones + t})} />
+                              </div>
+                              <textarea value={nuevaSesionForm.observaciones} onChange={e => setNuevaSesionForm({...nuevaSesionForm, observaciones: e.target.value})} rows={2}
+                                className="w-full px-3 py-2 border border-gray-300 rounded text-sm resize-none"
+                                placeholder="Paciente mostró buena respuesta, identifica distorsiones..." />
+                            </div>
+                            <div className="mb-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <label className="text-xs font-medium text-gray-600">Notas adicionales</label>
+                                <DictationButton onResult={(t) => setNuevaSesionForm({...nuevaSesionForm, notas: nuevaSesionForm.notas + t})} />
+                              </div>
+                              <textarea value={nuevaSesionForm.notas} onChange={e => setNuevaSesionForm({...nuevaSesionForm, notas: e.target.value})} rows={2}
+                                className="w-full px-3 py-2 border border-gray-300 rounded text-sm resize-none"
+                                placeholder="Próxima sesión enfocarse en exposición gradual..." />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <button onClick={() => { setNuevaSesionPaciente(null); setNuevaSesionForm({ fecha: '', temas: '', observaciones: '', notas: '', duracion: '50' }); }}
+                                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium">
+                                Cancelar
+                              </button>
+                              <button onClick={() => crearNuevaSesion(p)} disabled={guardandoNuevaSesion || !nuevaSesionForm.fecha}
+                                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded text-sm font-medium">
+                                {guardandoNuevaSesion ? 'Guardando...' : '💾 Guardar Sesión'}
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
 
                     {expandedPac === p.id && (
                       <tr>
