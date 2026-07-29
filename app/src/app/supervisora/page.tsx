@@ -63,6 +63,8 @@ export default function SupervisoraPage() {
     }).catch(() => {});
   }, []);
 
+  if (!user && loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><p className="text-gray-500">Cargando...</p></div>;
+
   if (!user || !['supervisora', 'supervisor', 'lider'].includes(user.rol)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
