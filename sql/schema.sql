@@ -17,7 +17,7 @@ CREATE TABLE usuarios (
   nombre VARCHAR(100) NOT NULL,
   apellido VARCHAR(100) NOT NULL,
   telefono VARCHAR(20),
-  rol ENUM('psicologa', 'lider', 'supervisor') NOT NULL,
+  rol ENUM('psicologa', 'lider', 'supervisor', 'supervisora', 'recepcionista') NOT NULL,
   avatar_url VARCHAR(500),
   activo BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
