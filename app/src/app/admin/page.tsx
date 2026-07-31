@@ -6,7 +6,7 @@ import CameraCapture from '@/components/CameraCapture';
 import FingerprintCapture from '@/components/FingerprintCapture';
 
 
-type Tab = 'psicologas' | 'pacientes' | 'asignaciones' | 'supervision' | 'personal';
+type Tab = 'psicologas' | 'pacientes' | 'asignaciones' | 'supervision' | 'personal' | 'libros';
 
 interface Usuario {
   id: number; nombre: string; apellido: string; email: string; telefono: string; rol: string; activo: number; created_at: string;
@@ -43,6 +43,7 @@ export default function AdminPage() {
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [asignaciones, setAsignaciones] = useState<Asignacion[]>([]);
   const [programas, setProgramas] = useState<Programa[]>([]);
+  const [libros, setLibros] = useState<any[]>([]);
 
   // Modals
   const [showModal, setShowModal] = useState(false);
@@ -89,23 +90,26 @@ export default function AdminPage() {
 
   const loadData = async () => {
     try {
-      const [pRes, paRes, aRes, prRes, allRes] = await Promise.all([
+      const [pRes, paRes, aRes, prRes, allRes, lRes] = await Promise.all([
         fetch('/api/admin/usuarios?rol=psicologa'),
         fetch('/api/admin/pacientes'),
         fetch('/api/admin/asignaciones'),
         fetch('/api/programas'),
-        fetch('/api/admin/usuarios')
+        fetch('/api/admin/usuarios'),
+        fetch('/api/libros')
       ]);
       const pData = await pRes.json();
       const paData = await paRes.json();
       const aData = await aRes.json();
       const prData = await prRes.json();
       const allData = await allRes.json();
+      const lData = await lRes.json();
       setPsicologas(Array.isArray(pData) ? pData : pData.usuarios || []);
       setPersonal(Array.isArray(allData) ? allData : allData.usuarios || []);
       setPacientes(Array.isArray(paData) ? paData : paData.pacientes || []);
       setAsignaciones(aData.asignaciones || []);
       setProgramas(Array.isArray(prData) ? prData : prData.programas || []);
+      setLibros(lData.libros || []);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -320,7 +324,7 @@ export default function AdminPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex gap-2 mb-6 border-b pb-2">
-          {([['psicologas','👩‍⚕️ Psicólogas'],['personal','👤 Personal'],['pacientes','🧑 Pacientes'],['asignaciones','📋 Tratamientos'],['supervision','👁️ Supervisión']] as [Tab,string][]).map(([t,label]) => (
+          {([['psicologas','👩‍⚕️ Psicólogas'],['personal','👤 Personal'],['pacientes','🧑 Pacientes'],['asignaciones','📋 Tratamientos'],['supervision','👁️ Supervisión'],['libros','📚 Libros']] as [Tab,string][]).map(([t,label]) => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${tab===t ? 'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {label}
@@ -743,6 +747,91 @@ export default function AdminPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ===== LIBROS ===== */}
+        {tab === 'libros' && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-gray-800">📚 Catálogo de Libros ({libros.length})</h2>
+              <button onClick={async () => {
+                const titulo = prompt('Título del libro:');
+                if (!titulo) return;
+                const autor = prompt('Autor:') || '';
+                const precio = prompt('Precio (MXN):');
+                if (!precio) return;
+                const descripcion = prompt('Descripción (opcional):') || '';
+                const stock = prompt('Stock inicial:') || '0';
+                await fetch('/api/libros', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ titulo, autor, precio: Number(precio), stock: Number(stock), descripcion })
+                });
+                const r = await fetch('/api/libros');
+                const d = await r.json();
+                setLibros(d.libros || []);
+              }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                + Nuevo Libro
+              </button>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium">Título</th>
+                    <th className="text-left px-4 py-3 font-medium">Autor</th>
+                    <th className="text-right px-4 py-3 font-medium">Precio</th>
+                    <th className="text-center px-4 py-3 font-medium">Stock</th>
+                    <th className="text-left px-4 py-3 font-medium">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {libros.map(l => (
+                    <tr key={l.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-800">{l.titulo}</td>
+                      <td className="px-4 py-3 text-gray-500">{l.autor || '—'}</td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-800">${Number(l.precio).toLocaleString('es-MX')}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${l.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {l.stock}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1">
+                          <button onClick={async () => {
+                            const nuevoStock = prompt('Nuevo stock:', String(l.stock));
+                            if (nuevoStock === null) return;
+                            await fetch('/api/libros', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: l.id, stock: Number(nuevoStock) })
+                            });
+                            const r = await fetch('/api/libros');
+                            const d = await r.json();
+                            setLibros(d.libros || []);
+                          }}
+                            className="px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-[10px] font-medium">
+                            Stock
+                          </button>
+                          <button onClick={async () => {
+                            if (!confirm('¿Desactivar este libro?')) return;
+                            await fetch(`/api/libros?id=${l.id}`, { method: 'DELETE' });
+                            const r = await fetch('/api/libros');
+                            const d = await r.json();
+                            setLibros(d.libros || []);
+                          }}
+                            className="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-[10px] font-medium">
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

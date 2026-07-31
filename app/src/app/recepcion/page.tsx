@@ -53,6 +53,7 @@ export default function RecepcionPage() {
   const [entregas, setEntregas] = useState<Entrega[]>([]);
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [citas, setCitas] = useState<Cita[]>([]);
+  const [libros, setLibros] = useState<any[]>([]);
 
   const [fechaActual, setFechaActual] = useState(new Date());
   const [diaSeleccionado, setDiaSeleccionado] = useState<string | null>(null);
@@ -84,6 +85,9 @@ export default function RecepcionPage() {
   const [citaBatchDias, setCitaBatchDias] = useState<string[]>([]);
   const [filtroFechaInicio, setFiltroFechaInicio] = useState(new Date().toISOString().split('T')[0]);
   const [filtroFechaFin, setFiltroFechaFin] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0]; });
+
+  const [citaVista, setCitaVista] = useState<'lista'|'calendario'>('lista');
+  const [calFecha, setCalFecha] = useState(() => new Date().toISOString().split('T')[0]);
 
   const [showFirmaModal, setShowFirmaModal] = useState(false);
   const [firmaGastoId, setFirmaGastoId] = useState<number | null>(null);
@@ -127,20 +131,23 @@ export default function RecepcionPage() {
 
   const loadData = async () => {
     try {
-      const [pRes, tRes, cRes, uRes] = await Promise.all([
+      const [pRes, tRes, cRes, uRes, lRes] = await Promise.all([
         fetch('/api/pacientes'),
         fetch('/api/admin/talleres'),
         fetch(`/api/cobros?mes=${filtroMes}&anio=${filtroAnio}`),
-        fetch('/api/admin/usuarios')
+        fetch('/api/admin/usuarios'),
+        fetch('/api/libros')
       ]);
       const pData = await pRes.json();
       const tData = await tRes.json();
       const cData = await cRes.json();
       const uData = await uRes.json();
+      const lData = await lRes.json();
       setPacientes(Array.isArray(pData) ? pData : pData.pacientes || []);
       setTalleres(tData.talleres || []);
       setCobros(cData.cobros || []);
       setUsuarios(Array.isArray(uData) ? uData : uData.usuarios || []);
+      setLibros(lData.libros || []);
       loadEntregas();
       loadGastos();
       loadCitas();
@@ -182,6 +189,7 @@ export default function RecepcionPage() {
       if (citaBatch && Number(citaBatchNum) > 0) {
         const baseDate = new Date(citaForm.fecha + 'T12:00:00');
         let creadas = 0;
+        const errores: string[] = [];
         for (let i = 0; i < Number(citaBatchNum); i++) {
           const nextDate = new Date(baseDate);
           nextDate.setDate(nextDate.getDate() + (i * 7));
@@ -191,8 +199,11 @@ export default function RecepcionPage() {
             body: JSON.stringify({ ...citaForm, fecha: fechaStr, created_by: user?.id })
           });
           if (res.ok) creadas++;
+          else { const d = await res.json(); errores.push(`${fechaStr}: ${d.error}`); }
         }
-        alert(`${creadas} citas programadas (cada 7 días)`);
+        let msg = `${creadas} de ${citaBatchNum} citas programadas`;
+        if (errores.length > 0) msg += `\n\nErrores:\n${errores.join('\n')}`;
+        alert(msg);
       } else {
         const res = await fetch('/api/citas', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -536,6 +547,43 @@ export default function RecepcionPage() {
     setShowCobroForm(true);
   };
 
+  const imprimirHardcopyCobro = (c: Cobro) => {
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><title>Comprobante de Cobro #${c.id}</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 18px; }
+        .header p { margin: 2px 0; font-size: 12px; color: #666; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        td { padding: 8px 12px; border: 1px solid #ccc; font-size: 13px; }
+        td.label { background: #f5f5f5; font-weight: bold; width: 30%; }
+        .total-row td { font-weight: bold; font-size: 15px; background: #e8f5e9; }
+        .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
+        @media print { body { padding: 20px; } }
+      </style>
+    </head><body>
+      <div class="header">
+        <h1>COMPROBANTE DE COBRO</h1>
+        <p>Clínica de Psicología — Sistema CRM</p>
+        <p>Folio: #${c.id} | Fecha: ${c.fecha} ${c.hora || ''}</p>
+      </div>
+      <table>
+        <tr><td class="label">Paciente</td><td>${c.paciente_nombre} ${c.paciente_apellido}</td></tr>
+        ${c.taller_nombre ? `<tr><td class="label">Taller</td><td>${c.taller_nombre}</td></tr>` : ''}
+        <tr><td class="label">Concepto</td><td>${tipoLabels[c.tipo] || c.tipo}${c.concepto ? ` — ${c.concepto}` : ''}</td></tr>
+        <tr><td class="label">Método de Pago</td><td>${metodoLabels[c.metodo_pago] || c.metodo_pago}</td></tr>
+        <tr class="total-row"><td class="label">Total</td><td>$${Number(c.monto).toLocaleString('es-MX')} MXN</td></tr>
+        </table>
+      <div class="footer">
+        Generado por ${user?.nombre} ${user?.apellido} el ${new Date().toLocaleDateString('es-MX')} ${new Date().toLocaleTimeString('es-MX')}
+      </div>
+      <script>window.onload=function(){window.print();}</script>
+    </body></html>`);
+    win.document.close();
+  };
+
   const generarCorte = async () => {
     try {
       let url = `/api/cobros?fecha=${corteFecha}`;
@@ -565,23 +613,23 @@ export default function RecepcionPage() {
     rows.push(`Fecha/Hora exportación,"${new Date().toLocaleString('es-MX')}"`);
     rows.push('');
     rows.push('RESUMEN');
-    rows.push(`Total del día,$${corteData.total.toLocaleString('es-MX')}`);
+    rows.push(`Total del día,${corteData.total}`);
     rows.push(`Total cobros,${corteData.cobros.length}`);
     rows.push('');
     rows.push('POR MÉTODO DE PAGO');
     Object.entries(corteData.porMetodo).forEach(([metodo, total]) => {
-      rows.push(`${metodoLabels[metodo] || metodo},$${total.toLocaleString('es-MX')}`);
+      rows.push(`${metodoLabels[metodo] || metodo},${total}`);
     });
     rows.push('');
     rows.push('POR TIPO DE COBRO');
     Object.entries(corteData.porTipo).forEach(([tipo, total]) => {
-      rows.push(`${tipoLabels[tipo] || tipo},$${total.toLocaleString('es-MX')}`);
+      rows.push(`${tipoLabels[tipo] || tipo},${total}`);
     });
     rows.push('');
     rows.push('DETALLE DE COBROS');
     rows.push('ID,Paciente,Fecha,Hora,Tipo,Concepto,Monto,Método Pago,Estado,Observaciones,Confirmado Psicóloga');
     corteData.cobros.forEach(c => {
-      rows.push(`${c.id},"${c.paciente_nombre} ${c.paciente_apellido}",${c.fecha},${c.hora||''},${c.tipo},"${(c.concepto||'').replace(/"/g,'""')}",$${Number(c.monto).toLocaleString('es-MX')},${c.metodo_pago},${c.estado},"${(c.observaciones||'').replace(/"/g,'""')}",${c.confirmado_psicologa ? 'Sí' : 'No'}`);
+      rows.push(`${c.id},"${c.paciente_nombre} ${c.paciente_apellido}",${c.fecha},${c.hora||''},${c.tipo},"${(c.concepto||'').replace(/"/g,'""')}",${Number(c.monto)},${c.metodo_pago},${c.estado},"${(c.observaciones||'').replace(/"/g,'""')}",${c.confirmado_psicologa ? 'Sí' : 'No'}`);
     });
     const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -596,7 +644,8 @@ export default function RecepcionPage() {
     tarjeta_debito: '💳 Tarjeta Débito', transferencia: '🏦 Transferencia', otro: 'Otro'
   };
   const tipoLabels: Record<string, string> = {
-    sesion: '🧠 Sesión', taller: '🎓 Taller', programa: '📋 Programa', otro: 'Otro'
+    sesion: '🧠 Sesión', taller: '🎓 Taller', programa: '📋 Programa',
+    venta_libros: '📚 Venta de Libros', gastos_talleres: '🛠️ Gastos de Talleres', otro: 'Otro'
   };
 
   const mesAnterior = () => {
@@ -767,8 +816,14 @@ export default function RecepcionPage() {
                             }`}>{c.estado}</span>
                           </div>
                           <div className="flex items-center justify-between mt-0.5">
-                            <span className="text-gray-500">{new Date(c.fecha).toLocaleDateString('es-MX')} • {c.tipo === 'sesion' ? '🧠 Sesión' : c.tipo === 'taller' ? '🎓 Taller' : c.tipo}</span>
-                            <span className="font-bold text-green-600">${Number(c.monto).toLocaleString('es-MX')}</span>
+                            <span className="text-gray-500">{new Date(c.fecha).toLocaleDateString('es-MX')} • {tipoLabels[c.tipo] || c.tipo}</span>
+                            <div className="flex items-center gap-1">
+                              <span className="font-bold text-green-600">${Number(c.monto).toLocaleString('es-MX')}</span>
+                              <button onClick={() => imprimirHardcopyCobro(c)}
+                                className="px-1.5 py-0.5 bg-gray-500 hover:bg-gray-600 text-white rounded text-[9px] font-medium">
+                                🖨️
+                              </button>
+                            </div>
                           </div>
                           {c.tipo === 'sesion' && (
                             <div className="mt-1">
@@ -970,6 +1025,12 @@ export default function RecepcionPage() {
                 <input type="date" value={filtroFechaFin} onChange={e => setFiltroFechaFin(e.target.value)}
                   className="px-3 py-1.5 border rounded-lg text-sm" />
                 <span className="text-xs text-gray-400 ml-auto">{citas.length} cita(s) en este periodo</span>
+                <div className="flex gap-1 ml-2">
+                  <button onClick={() => setCitaVista('lista')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium ${citaVista === 'lista' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>📋 Lista</button>
+                  <button onClick={() => setCitaVista('calendario')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium ${citaVista === 'calendario' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>📅 Calendario</button>
+                </div>
               </div>
             </div>
 
@@ -997,73 +1058,122 @@ export default function RecepcionPage() {
               </div>
             </div>
 
-            {/* Lista de citas */}
-            <div className="bg-white rounded-xl shadow p-4">
-              <h3 className="font-bold text-sm text-gray-800 mb-3">Citas Programadas</h3>
-              {citas.length === 0 ? (
-                <p className="text-xs text-gray-400 italic text-center py-6">No hay citas en este periodo</p>
-              ) : (
-                <div className="space-y-2">
-                  {citas.map(c => {
-                    const estadoColors: Record<string, string> = {
-                      programada: 'bg-blue-100 text-blue-700',
-                      confirmada: 'bg-green-100 text-green-700',
-                      en_curso: 'bg-yellow-100 text-yellow-700',
-                      completada: 'bg-emerald-100 text-emerald-700',
-                      cancelada: 'bg-red-100 text-red-700',
-                      no_asistio: 'bg-gray-100 text-gray-700'
-                    };
-                    const tipoLabels: Record<string, string> = {
-                      sesion: '🧠 Sesión', seguimiento: '📋 Seguimiento', evaluacion: '📝 Evaluación', taller: '🎓 Taller', otro: '📌 Otro'
-                    };
-                    const esHoy = c.fecha === new Date().toISOString().split('T')[0];
-                    return (
-                      <div key={c.id} className={`flex items-center justify-between p-3 rounded-lg border text-xs ${esHoy ? 'border-purple-300 bg-purple-50' : ''}`}>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`font-bold ${esHoy ? 'text-purple-700' : 'text-gray-700'}`}>
-                              {c.paciente_nombre} {c.paciente_apellido}
-                            </span>
-                            <span className="text-gray-400">con</span>
-                            <span className="font-medium text-gray-600">{c.psicologa_nombre} {c.psicologa_apellido}</span>
+            {citaVista === 'lista' ? (
+              <div className="bg-white rounded-xl shadow p-4">
+                <h3 className="font-bold text-sm text-gray-800 mb-3">Citas Programadas</h3>
+                {citas.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic text-center py-6">No hay citas en este periodo</p>
+                ) : (
+                  <div className="space-y-2">
+                    {citas.map(c => {
+                      const estadoColors: Record<string, string> = {
+                        programada: 'bg-blue-100 text-blue-700',
+                        confirmada: 'bg-green-100 text-green-700',
+                        en_curso: 'bg-yellow-100 text-yellow-700',
+                        completada: 'bg-emerald-100 text-emerald-700',
+                        cancelada: 'bg-red-100 text-red-700',
+                        no_asistio: 'bg-gray-100 text-gray-700'
+                      };
+                      const tipoLabels: Record<string, string> = {
+                        sesion: '🧠 Sesión', seguimiento: '📋 Seguimiento', evaluacion: '📝 Evaluación', taller: '🎓 Taller', otro: '📌 Otro'
+                      };
+                      const esHoy = c.fecha === new Date().toISOString().split('T')[0];
+                      return (
+                        <div key={c.id} className={`flex items-center justify-between p-3 rounded-lg border text-xs ${esHoy ? 'border-purple-300 bg-purple-50' : ''}`}>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`font-bold ${esHoy ? 'text-purple-700' : 'text-gray-700'}`}>
+                                {c.paciente_nombre} {c.paciente_apellido}
+                              </span>
+                              <span className="text-gray-400">con</span>
+                              <span className="font-medium text-gray-600">{c.psicologa_nombre} {c.psicologa_apellido}</span>
+                            </div>
+                            <p className="text-gray-500 mt-0.5">
+                              {tipoLabels[c.tipo] || c.tipo} • {c.fecha} {c.hora_inicio}{c.hora_fin ? ` - ${c.hora_fin}` : ''}
+                              {esHoy && <span className="text-purple-600 font-bold ml-1">HOY</span>}
+                            </p>
+                            {c.motivo && <p className="text-gray-400 mt-0.5 truncate">{c.motivo}</p>}
                           </div>
-                          <p className="text-gray-500 mt-0.5">
-                            {tipoLabels[c.tipo] || c.tipo} • {c.fecha} {c.hora_inicio}{c.hora_fin ? ` - ${c.hora_fin}` : ''}
-                            {esHoy && <span className="text-purple-600 font-bold ml-1">HOY</span>}
-                          </p>
-                          {c.motivo && <p className="text-gray-400 mt-0.5 truncate">{c.motivo}</p>}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${estadoColors[c.estado] || 'bg-gray-100 text-gray-700'}`}>
-                            {c.estado.replace('_', ' ')}
-                          </span>
-                          {c.estado === 'programada' && (
-                            <button onClick={() => actualizarCita(c.id, 'confirmada')}
-                              className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-medium">
-                              ✅ Confirmar
-                            </button>
-                          )}
-                          {(c.estado === 'programada' || c.estado === 'confirmada') && (
-                            <>
-                              <button onClick={() => actualizarCita(c.id, 'completada')}
-                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-medium">
-                                ✔️ Completar
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${estadoColors[c.estado] || 'bg-gray-100 text-gray-700'}`}>
+                              {c.estado.replace('_', ' ')}
+                            </span>
+                            {c.estado === 'programada' && (
+                              <button onClick={() => actualizarCita(c.id, 'confirmada')}
+                                className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-medium">
+                                ✅ Confirmar
                               </button>
-                              <button onClick={() => cancelarCita(c.id)}
-                                className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-[10px] font-medium">
-                                ✕ Cancelar
-                              </button>
-                            </>
-                          )}
+                            )}
+                            {(c.estado === 'programada' || c.estado === 'confirmada') && (
+                              <>
+                                <button onClick={() => actualizarCita(c.id, 'completada')}
+                                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-medium">
+                                  ✔️ Completar
+                                </button>
+                                <button onClick={() => cancelarCita(c.id)}
+                                  className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-[10px] font-medium">
+                                  ✕ Cancelar
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <button onClick={() => { const d = new Date(calFecha); d.setMonth(d.getMonth() - 1); const s = d.toISOString().split('T')[0]; setCalFecha(s); setFiltroFechaInicio(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]); setFiltroFechaFin(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]); }}
+                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm">◀ Anterior</button>
+                  <h3 className="font-bold text-sm text-gray-800">
+                    {new Date(calFecha).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
+                  </h3>
+                  <button onClick={() => { const d = new Date(calFecha); d.setMonth(d.getMonth() + 1); const s = d.toISOString().split('T')[0]; setCalFecha(s); setFiltroFechaInicio(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]); setFiltroFechaFin(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]); }}
+                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm">Siguiente ▶</button>
                 </div>
-              )}
-            </div>
+                <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden text-xs">
+                  {['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].map(d => (
+                    <div key={d} className="bg-gray-50 p-2 text-center font-semibold text-gray-500">{d}</div>
+                  ))}
+                  {(() => {
+                    const d = new Date(calFecha);
+                    const year = d.getFullYear();
+                    const month = d.getMonth();
+                    const firstDay = new Date(year, month, 1).getDay();
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                    const citasPorFecha: Record<string, typeof citas> = {};
+                    citas.forEach(c => { if (!citasPorFecha[c.fecha]) citasPorFecha[c.fecha] = []; citasPorFecha[c.fecha].push(c); });
+                    const cells = [];
+                    for (let i = 0; i < firstDay; i++) cells.push(<div key={`e${i}`} className="bg-white p-1.5 min-h-[60px]" />);
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const fechaStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const citasDia = citasPorFecha[fechaStr] || [];
+                      const esHoy = fechaStr === new Date().toISOString().split('T')[0];
+                      cells.push(
+                        <div key={day} className={`bg-white p-1.5 min-h-[60px] ${esHoy ? 'ring-2 ring-purple-500' : ''}`}>
+                          <span className={`text-[10px] font-bold ${esHoy ? 'text-purple-700' : 'text-gray-600'}`}>{day}</span>
+                          <div className="mt-0.5 space-y-0.5">
+                            {citasDia.slice(0, 3).map(c => (
+                              <div key={c.id} className={`text-[8px] px-1 py-0.5 rounded truncate font-medium ${c.estado === 'programada' ? 'bg-blue-100 text-blue-700' : c.estado === 'confirmada' ? 'bg-green-100 text-green-700' : c.estado === 'completada' ? 'bg-emerald-100 text-emerald-700' : c.estado === 'cancelada' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                                {c.hora_inicio?.slice(0,5)} {c.paciente_nombre?.split(' ')[0]}
+                              </div>
+                            ))}
+                            {citasDia.length > 3 && <span className="text-[8px] text-gray-400">+{citasDia.length - 3} más</span>}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return cells;
+                  })()}
+                </div>
+              </div>
+            )}
           </>
         )}
+
       </div>
 
       {/* Modal Nuevo Cobro */}
@@ -1096,6 +1206,8 @@ export default function RecepcionPage() {
                       <option value="sesion">🧠 Sesión Terapéutica (${MONTO_SESION})</option>
                       <option value="taller">🎓 Taller</option>
                       <option value="programa">📋 Programa Completo</option>
+                      <option value="venta_libros">📚 Venta de Libros</option>
+                      <option value="gastos_talleres">🛠️ Gastos de Talleres</option>
                       <option value="otro">Otro</option>
                     </select>
                   </div>
@@ -1106,6 +1218,20 @@ export default function RecepcionPage() {
                       className="w-full px-3 py-2 border rounded-lg text-sm" />
                   </div>
                 </div>
+                {cobroForm.tipo === 'venta_libros' && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Seleccionar Libro</label>
+                    <select onChange={e => {
+                      const lib = libros.find(l => l.id === Number(e.target.value));
+                      if (lib) setCobroForm({...cobroForm, concepto: `Venta: ${lib.titulo}${lib.autor ? ` - ${lib.autor}` : ''}`, monto: lib.precio.toString()});
+                    }} className="w-full px-3 py-2 border rounded-lg text-sm">
+                      <option value="">— Elegir libro —</option>
+                      {libros.filter(l => l.stock > 0).map(l => (
+                        <option key={l.id} value={l.id}>📖 {l.titulo} — ${Number(l.precio).toLocaleString('es-MX')} ({l.stock} disp.)</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Fecha *</label>
@@ -1333,8 +1459,8 @@ export default function RecepcionPage() {
                 </div>
               </div>
               <div className="flex gap-3 mt-5">
-                <button onClick={crearEntrega}
-                  className="flex-1 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium">
+                <button onClick={crearEntrega} disabled={!entregaForm.psicologa_id || !entregaForm.receptor_id || !entregaForm.monto || !entregaForm.fecha}
+                  className={`flex-1 py-2 text-white rounded-lg text-sm font-medium ${!entregaForm.psicologa_id || !entregaForm.receptor_id || !entregaForm.monto || !entregaForm.fecha ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'}`}>
                   💸 Registrar Entrega
                 </button>
                 <button onClick={() => setShowEntregaForm(false)}
@@ -1421,8 +1547,8 @@ export default function RecepcionPage() {
                 </div>
               </div>
               <div className="flex gap-3 mt-5">
-                <button onClick={crearGasto}
-                  className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">
+                <button onClick={crearGasto} disabled={!gastoForm.solicitado_por || !gastoForm.concepto || !gastoForm.monto || !gastoForm.fecha}
+                  className={`flex-1 py-2 text-white rounded-lg text-sm font-medium ${!gastoForm.solicitado_por || !gastoForm.concepto || !gastoForm.monto || !gastoForm.fecha ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}>
                   🧾 Registrar Gasto
                 </button>
                 <button onClick={() => setShowGastoForm(false)}

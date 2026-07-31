@@ -190,12 +190,36 @@ CREATE INDEX idx_alertas_resuelta ON alertas_desviacion(resuelta);
 CREATE INDEX idx_alertas_gravedad ON alertas_desviacion(gravedad);
 
 -- ============================================================
+-- TABLA: talleres
+-- ============================================================
+CREATE TABLE IF NOT EXISTS talleres (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  titulo VARCHAR(255) NOT NULL,
+  descripcion TEXT,
+  tema VARCHAR(255),
+  fecha DATE NOT NULL,
+  hora_inicio TIME,
+  hora_fin TIME,
+  lugar VARCHAR(255),
+  instructor VARCHAR(255),
+  capacidad INT DEFAULT 0,
+  inscritos INT DEFAULT 0,
+  estado ENUM('activo','completado','cancelado') DEFAULT 'activo',
+  publico_objetivo TEXT,
+  materiales TEXT,
+  resultado TEXT,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
 -- TABLA: cobros
 -- ============================================================
 CREATE TABLE cobros (
   id INT AUTO_INCREMENT PRIMARY KEY,
   paciente_id INT,
-  tipo ENUM('sesion','taller','programa','otro') NOT NULL DEFAULT 'sesion',
+  tipo ENUM('sesion','taller','programa','venta_libros','gastos_talleres','otro') NOT NULL DEFAULT 'sesion',
   concepto VARCHAR(255),
   sesion_id INT DEFAULT NULL,
   taller_id INT DEFAULT NULL,
@@ -211,6 +235,39 @@ CREATE TABLE cobros (
   created_by INT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: libros
+-- ============================================================
+CREATE TABLE IF NOT EXISTS libros (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  titulo VARCHAR(255) NOT NULL,
+  autor VARCHAR(255),
+  precio DECIMAL(10,2) NOT NULL DEFAULT 0,
+  stock INT DEFAULT 0,
+  descripcion TEXT,
+  activo TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: mercadeo
+-- ============================================================
+CREATE TABLE IF NOT EXISTS mercadeo (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  titulo VARCHAR(255) NOT NULL,
+  descripcion TEXT,
+  tipo VARCHAR(50) NOT NULL,
+  plataforma VARCHAR(100),
+  fecha_inicio DATE,
+  fecha_fin DATE,
+  estado ENUM('borrador','programado','publicado','cancelado') DEFAULT 'borrador',
+  contenido TEXT,
+  resultado TEXT,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (created_by) REFERENCES usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
