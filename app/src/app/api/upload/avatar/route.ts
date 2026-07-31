@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'avatars');
@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const finalName = `${Date.now()}_${safeName}`;
 
+    await mkdir(UPLOAD_DIR, { recursive: true });
     await writeFile(path.join(UPLOAD_DIR, finalName), buffer);
 
     return NextResponse.json({ url: `/uploads/avatars/${finalName}` }, { status: 201 });

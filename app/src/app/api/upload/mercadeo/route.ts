@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { writeFile, readdir, unlink, stat } from 'fs/promises';
+import { writeFile, readdir, unlink, stat, mkdir } from 'fs/promises';
 import path from 'path';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'mercadeo');
@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
     const timestamp = Date.now();
     const finalName = `${timestamp}_${safeName}`;
 
+    await mkdir(UPLOAD_DIR, { recursive: true });
     await writeFile(path.join(UPLOAD_DIR, finalName), buffer);
 
     return NextResponse.json({ name: finalName, originalName: file.name, size: file.size, message: 'Archivo subido' }, { status: 201 });
