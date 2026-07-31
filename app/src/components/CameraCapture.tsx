@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 
 interface CameraCaptureProps {
   onCapture: (dataUrl: string) => void;
@@ -12,11 +12,19 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState('');
+
+  useEffect(() => {
+    navigator.mediaDevices.enumerateDevices()
+      .then(devices => setCameras(devices.filter(d => d.kind === 'videoinput')))
+      .catch(() => {});
+  }, []);
 
   const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 400, height: 400, facingMode: 'user' }
+        video: selectedCamera ? { width: 400, height: 400, deviceId: { exact: selectedCamera } } : { width: 400, height: 400, facingMode: 'user' }
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -73,6 +81,19 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
         </div>
         <div className="p-4">
           {error && <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm mb-3">{error}</div>}
+          {cameras.length > 1 && (
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Cámara</label>
+              <select value={selectedCamera} onChange={e => setSelectedCamera(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                {cameras.map((c, i) => (
+                  <option key={c.deviceId} value={c.deviceId}>
+                    {c.label || `Cámara ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="relative mx-auto w-64 h-64 rounded-full overflow-hidden bg-gray-200 border-4 border-indigo-200">
             <video ref={videoRef} autoPlay playsInline muted
               className={`w-full h-full object-cover ${streaming ? '' : 'hidden'}`} />
