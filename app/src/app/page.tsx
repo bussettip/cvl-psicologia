@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getUsuario, clearUsuario } from '@/lib/auth';
+import Finanzas from '@/components/Finanzas';
 
 interface Estadisticas {
   totalPacientes: number;
@@ -63,6 +64,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
   const [showPsicologaMenu, setShowPsicologaMenu] = useState(false);
+  const [seccion, setSeccion] = useState<'principal' | 'finanzas'>('principal');
 
   useEffect(() => {
     setMounted(true);
@@ -134,9 +136,14 @@ export default function Dashboard() {
               </div>
             </div>
             <nav className="flex items-center gap-2 flex-wrap">
-              <Link href="/" className="px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-md">
+              <button onClick={() => setSeccion('principal')}
+                className={`px-3 py-2 text-sm font-medium rounded-md ${seccion === 'principal' ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}>
                 Dashboard
-              </Link>
+              </button>
+              <button onClick={() => setSeccion('finanzas')}
+                className={`px-3 py-2 text-sm font-medium rounded-md ${seccion === 'finanzas' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}>
+                💰 Finanzas
+              </button>
               <div className="relative" onMouseLeave={() => setShowPsicologaMenu(false)}>
                 <button onClick={() => setShowPsicologaMenu(!showPsicologaMenu)}
                   className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md flex items-center gap-1">
@@ -181,6 +188,10 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {seccion === 'finanzas' ? (
+          <Finanzas />
+        ) : (
+        <>
         {/* Estadísticas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-indigo-500">
@@ -428,6 +439,8 @@ export default function Dashboard() {
             </Link>
           </div>
         </div>
+        </>
+        )}
       </main>
     </div>
   );
