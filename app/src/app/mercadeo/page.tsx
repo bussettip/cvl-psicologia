@@ -9,6 +9,11 @@ interface Mercadeo {
   fecha_inicio: string; fecha_fin: string; estado: string; contenido: string;
   resultado: string; autor_nombre: string; autor_apellido: string; created_at: string;
 }
+interface Presupuesto {
+  id: number; titulo: string; descripcion: string; fecha: string;
+  monto: number; archivo_url: string; archivo_nombre: string;
+  estado: string; autor_nombre: string; autor_apellido: string; created_at: string;
+}
 
 export default function MercadeoPage() {
   const [user, setUser] = useState<any>(null);
@@ -25,11 +30,48 @@ export default function MercadeoPage() {
   const [archivos, setArchivos] = useState<{ name: string; size: number; created: string }[]>([]);
   const [subiendo, setSubiendo] = useState(false);
   const [showArchivos, setShowArchivos] = useState(false);
+  const [showPresupuestos, setShowPresupuestos] = useState(false);
+  const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
+  const [showPresupuestoForm, setShowPresupuestoForm] = useState(false);
+  const [presupuestoForm, setPresupuestoForm] = useState({ titulo: '', descripcion: '', fecha: '', monto: '' });
+  const [presupuestoFile, setPresupuestoFile] = useState<File | null>(null);
+  const [subiendoPresupuesto, setSubiendoPresupuesto] = useState(false);
   const [showRecordatorios, setShowRecordatorios] = useState(false);
   const [recordatoriosPendientes, setRecordatoriosPendientes] = useState<any[]>([]);
   const [historialRecordatorios, setHistorialRecordatorios] = useState<any[]>([]);
   const [loadingRecordatorios, setLoadingRecordatorios] = useState(false);
   const [enviandoRecordatorios, setEnviandoRecordatorios] = useState(false);
+
+  const PLAN_TASKS = [
+    { id: 'm1t1', month: 1, text: 'Definir temas de los 5 talleres terapéuticos y fechas tentativas' },
+    { id: 'm1t2', month: 1, text: 'Crear calendario editorial para redes sociales (3 publicaciones/semana)' },
+    { id: 'm1t3', month: 1, text: 'Diseñar flyers / imágenes promocionales por taller' },
+    { id: 'm1t4', month: 1, text: 'Redactar descripciones y beneficios de cada taller' },
+    { id: 'm1t5', month: 1, text: 'Configurar landing page / formulario de registro' },
+    { id: 'm2t1', month: 2, text: 'Lanzar campaña en Facebook/Instagram Ads (público objetivo por taller)' },
+    { id: 'm2t2', month: 2, text: 'Enviar newsletter / correo masivo a base de datos existente' },
+    { id: 'm2t3', month: 2, text: 'Contactar aliados (psicólogas, clínicas, escuelas) para difusión cruzada' },
+    { id: 'm2t4', month: 2, text: 'Publicar testimonios y casos de éxito en redes sociales' },
+    { id: 'm2t5', month: 2, text: 'Ofrecer descuento por inscripción temprana (early bird)' },
+    { id: 'm3t1', month: 3, text: 'Recordatorio de últimos lugares disponibles (urgencia/escases)' },
+    { id: 'm3t2', month: 3, text: 'Enviar recordatorios personalizados a leads que no confirmaron' },
+    { id: 'm3t3', month: 3, text: 'Ejecutar los 5 talleres y recolectar feedback' },
+    { id: 'm3t4', month: 3, text: 'Publicar resumen / galería de fotos de los talleres' },
+    { id: 'm3t5', month: 3, text: 'Medir resultados (asistencia, ingresos, leads nuevos, ROI) y documentar' },
+  ];
+  const [planChecked, setPlanChecked] = useState<Record<string, boolean>>({});
+  const [showPlanAccion, setShowPlanAccion] = useState(false);
+
+  useEffect(() => {
+    try { const saved = localStorage.getItem('plan_accion_mercadeo'); if (saved) setPlanChecked(JSON.parse(saved)); } catch {}
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('plan_accion_mercadeo', JSON.stringify(planChecked));
+  }, [planChecked]);
+
+  const togglePlanTask = (id: string) => setPlanChecked(p => ({ ...p, [id]: !p[id] }));
+  const resetPlan = () => { if (confirm('¿Reiniciar plan de acción? Se borrarán todos los avances.')) setPlanChecked({}); };
 
   useEffect(() => {
     setMounted(true);
@@ -39,6 +81,7 @@ export default function MercadeoPage() {
         setUser(data.user);
         fetchData();
         fetchArchivos();
+        fetchPresupuestos();
       } else {
         window.location.href = '/login';
       }
@@ -59,6 +102,14 @@ export default function MercadeoPage() {
       const res = await fetch('/api/upload/mercadeo');
       const data = await res.json();
       setArchivos(data.files || []);
+    } catch (e) { console.error(e); }
+  };
+
+  const fetchPresupuestos = async () => {
+    try {
+      const res = await fetch('/api/mercadeo/presupuestos');
+      const data = await res.json();
+      setPresupuestos(data.presupuestos || []);
     } catch (e) { console.error(e); }
   };
 
@@ -353,6 +404,69 @@ export default function MercadeoPage() {
           )}
         </div>
 
+        {/* Presupuestos */}
+        <div className="bg-white rounded-xl shadow-sm border mb-6">
+          <button onClick={() => { setShowPresupuestos(!showPresupuestos); if (!showPresupuestos) fetchPresupuestos(); }}
+            className="w-full px-4 py-3 flex items-center justify-between text-left">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">💰</span>
+              <span className="font-bold text-sm text-gray-800">Presupuestos</span>
+              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs">{presupuestos.length}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {showPresupuestos && (
+                <button onClick={(e) => { e.stopPropagation(); setShowPresupuestoForm(true); }}
+                  className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-medium">
+                  + Nuevo
+                </button>
+              )}
+              <span className="text-gray-400 text-xs">{showPresupuestos ? '▲ Ocultar' : '▼ Mostrar'}</span>
+            </div>
+          </button>
+          {showPresupuestos && (
+            <div className="border-t px-4 pb-4">
+              {presupuestos.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6">No hay presupuestos registrados</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {presupuestos.map(p => (
+                    <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-800">{p.titulo}</span>
+                          <span className="text-xs text-gray-400">📅 {new Date(p.fecha).toLocaleDateString('es-MX')}</span>
+                          {p.monto && <span className="text-xs font-bold text-green-600">${Number(p.monto).toLocaleString('es-MX')}</span>}
+                        </div>
+                        {p.descripcion && <p className="text-xs text-gray-500 mt-0.5">{p.descripcion}</p>}
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {p.autor_nombre} {p.autor_apellido} • {new Date(p.created_at).toLocaleDateString('es-MX')}
+                        </p>
+                        {p.archivo_url && (
+                          <a href={p.archivo_url} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-1 text-blue-600 hover:text-blue-800 text-[10px] font-medium">
+                            📎 {p.archivo_nombre || 'Ver archivo'}
+                          </a>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {p.archivo_url && (
+                          <a href={p.archivo_url} target="_blank" rel="noopener noreferrer"
+                            className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">Abrir</a>
+                        )}
+                        <button onClick={async () => {
+                          if (!confirm('¿Eliminar este presupuesto?')) return;
+                          await fetch(`/api/mercadeo/presupuestos?id=${p.id}`, { method: 'DELETE' });
+                          fetchPresupuestos();
+                        }} className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">Eliminar</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Recordatorios de Correo */}
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           <button onClick={() => { setShowRecordatorios(!showRecordatorios); if (!showRecordatorios) fetchRecordatorios(); }}
@@ -425,6 +539,168 @@ export default function MercadeoPage() {
             </div>
           )}
         </div>
+
+        {/* Plan de Acción - 5 Talleres en 3 Meses */}
+        <div className="bg-white rounded-xl shadow-sm border mb-6">
+          <button onClick={() => setShowPlanAccion(!showPlanAccion)}
+            className="w-full px-4 py-3 flex items-center justify-between text-left">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎯</span>
+              <span className="font-bold text-sm text-gray-800">Plan de Acción — 5 Talleres en 3 Meses</span>
+              {(() => { const total = PLAN_TASKS.length; const done = Object.values(planChecked).filter(Boolean).length; const pct = total ? Math.round(done/total*100) : 0; return (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${pct === 100 ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                  {done}/{total} ({pct}%)
+                </span>
+              );})()}
+            </div>
+            <div className="flex items-center gap-2">
+              {showPlanAccion && (
+                <button onClick={(e) => { e.stopPropagation(); resetPlan(); }}
+                  className="px-2 py-1 text-[10px] text-red-600 hover:bg-red-50 rounded font-medium" title="Reiniciar plan">
+                  Reiniciar
+                </button>
+              )}
+              <span className="text-gray-400 text-xs">{showPlanAccion ? '▲ Ocultar' : '▼ Mostrar'}</span>
+            </div>
+          </button>
+          {showPlanAccion && (
+            <div className="border-t">
+              {(() => {
+                const total = PLAN_TASKS.length;
+                const done = Object.values(planChecked).filter(Boolean).length;
+                const pct = total ? Math.round(done/total*100) : 0;
+                return (
+                  <div className="px-4 pt-4 pb-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div className={`h-2.5 rounded-full transition-all duration-500 ${pct === 100 ? 'bg-green-500' : 'bg-indigo-500'}`} style={{width: pct+'%'}}></div>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1 text-right">{pct}% completado</p>
+                  </div>
+                );
+              })()}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-4 px-4 pb-4">
+                {[1,2,3].map(mes => {
+                  const monthTasks = PLAN_TASKS.filter(t => t.month === mes);
+                  const monthDone = monthTasks.filter(t => planChecked[t.id]).length;
+                  const monthPct = Math.round(monthDone/monthTasks.length*100);
+                  const monthNames = ['Mes 1 — Preparación', 'Mes 2 — Promoción', 'Mes 3 — Cierre'];
+                  const monthIcons = ['🚀', '📢', '🏁'];
+                  return (
+                    <div key={mes} className="bg-gray-50 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-lg">{monthIcons[mes-1]}</span>
+                        <div className="flex-1">
+                          <h4 className="text-xs font-bold text-gray-700">{monthNames[mes-1]}</h4>
+                          <div className="flex items-center gap-1 mt-1">
+                            <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                              <div className={`h-1.5 rounded-full ${monthPct === 100 ? 'bg-green-400' : 'bg-indigo-400'}`} style={{width: monthPct+'%'}}></div>
+                            </div>
+                            <span className="text-[10px] text-gray-500">{monthDone}/{monthTasks.length}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        {monthTasks.map(t => (
+                          <label key={t.id} className={`flex items-start gap-2 p-1.5 rounded-lg cursor-pointer transition-colors ${planChecked[t.id] ? 'bg-green-50' : 'hover:bg-gray-100'}`}>
+                            <input type="checkbox" checked={!!planChecked[t.id]} onChange={() => togglePlanTask(t.id)}
+                              className="mt-0.5 w-3.5 h-3.5 accent-indigo-600 cursor-pointer" />
+                            <span className={`text-xs leading-relaxed ${planChecked[t.id] ? 'text-green-700 line-through' : 'text-gray-700'}`}>{t.text}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Nuevo Presupuesto */}
+        {showPresupuestoForm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-gray-800">💰 Nuevo Presupuesto</h3>
+                  <button onClick={() => { setShowPresupuestoForm(false); setPresupuestoFile(null); }}
+                    className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Título *</label>
+                    <input value={presupuestoForm.titulo} onChange={e => setPresupuestoForm({...presupuestoForm, titulo: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Ej: Campaña Google Ads Q3" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Fecha *</label>
+                      <input type="date" value={presupuestoForm.fecha} onChange={e => setPresupuestoForm({...presupuestoForm, fecha: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Monto (MXN)</label>
+                      <input type="number" step="0.01" min="0" value={presupuestoForm.monto}
+                        onChange={e => setPresupuestoForm({...presupuestoForm, monto: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="0.00" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
+                    <textarea value={presupuestoForm.descripcion} onChange={e => setPresupuestoForm({...presupuestoForm, descripcion: e.target.value})}
+                      rows={2} className="w-full px-3 py-2 border rounded-lg text-sm resize-none" placeholder="Detalles del presupuesto..." />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Archivo (PDF, Excel, Word, imagen)</label>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.xls"
+                      onChange={e => setPresupuestoFile(e.target.files?.[0] || null)}
+                      className="w-full px-3 py-2 border rounded-lg text-sm file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+                    {presupuestoFile && <p className="text-xs text-green-600 mt-1">📎 {presupuestoFile.name}</p>}
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <button onClick={async () => {
+                    if (!presupuestoForm.titulo || !presupuestoForm.fecha) { alert('Título y fecha son obligatorios'); return; }
+                    setSubiendoPresupuesto(true);
+                    try {
+                      let archivo_url = '';
+                      let archivo_nombre = '';
+                      if (presupuestoFile) {
+                        const fd = new FormData();
+                        fd.append('file', presupuestoFile);
+                        const upRes = await fetch('/api/upload/presupuestos', { method: 'POST', body: fd });
+                        if (!upRes.ok) { const d = await upRes.json(); throw new Error(d.error); }
+                        const upData = await upRes.json();
+                        archivo_url = upData.url;
+                        archivo_nombre = upData.nombre || presupuestoFile.name;
+                      }
+                      const res = await fetch('/api/mercadeo/presupuestos', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          ...presupuestoForm, monto: presupuestoForm.monto ? Number(presupuestoForm.monto) : null,
+                          archivo_url, archivo_nombre, created_by: user?.id
+                        })
+                      });
+                      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+                      setShowPresupuestoForm(false);
+                      setPresupuestoForm({ titulo: '', descripcion: '', fecha: '', monto: '' });
+                      setPresupuestoFile(null);
+                      fetchPresupuestos();
+                    } catch (e: any) { alert('Error: ' + e.message); }
+                    finally { setSubiendoPresupuesto(false); }
+                  }} disabled={subiendoPresupuesto}
+                    className={`flex-1 py-2 text-white rounded-lg text-sm font-medium ${subiendoPresupuesto ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}>
+                    {subiendoPresupuesto ? '⏳ Guardando...' : '💰 Guardar Presupuesto'}
+                  </button>
+                  <button onClick={() => { setShowPresupuestoForm(false); setPresupuestoFile(null); }}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Lista */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
