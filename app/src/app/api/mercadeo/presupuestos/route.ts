@@ -36,6 +36,31 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { id, titulo, descripcion, fecha, monto, archivo_url, archivo_nombre, estado } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Falta el ID' }, { status: 400 });
+    }
+
+    await db.query(
+      `UPDATE presupuestos SET
+        titulo=COALESCE(?,titulo), descripcion=COALESCE(?,descripcion),
+        fecha=COALESCE(?,fecha), monto=COALESCE(?,monto),
+        archivo_url=COALESCE(?,archivo_url), archivo_nombre=COALESCE(?,archivo_nombre),
+        estado=COALESCE(?,estado)
+        WHERE id=?`,
+      [titulo, descripcion, fecha, monto, archivo_url, archivo_nombre, estado, id]
+    );
+
+    return NextResponse.json({ message: 'Presupuesto actualizado' });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

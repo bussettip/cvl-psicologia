@@ -65,6 +65,7 @@ export default function Finanzas() {
 
   const [showPresForm, setShowPresForm] = useState(false);
   const [presForm, setPresForm] = useState({ titulo: '', descripcion: '', fecha: '', monto: '' });
+  const [editingPres, setEditingPres] = useState<Presupuesto | null>(null);
   const [showBancoForm, setShowBancoForm] = useState(false);
   const [bancoForm, setBancoForm] = useState({ nombre: '', banco: '', numero_cuenta: '', tipo: 'cuenta', saldo_inicial: '' });
   const [showMovForm, setShowMovForm] = useState(false);
@@ -224,11 +225,28 @@ export default function Finanzas() {
                       <p className="font-medium text-gray-800">{p.titulo}</p>
                       <p className="text-gray-400">{p.fecha}{p.descripcion ? ` • ${p.descripcion}` : ''}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-gray-800">${Number(p.monto || 0).toLocaleString('es-MX')}</p>
-                      {p.archivo_url && (
-                        <a href={p.archivo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">📄 Ver archivo</a>
-                      )}
+                    <div className="flex items-center gap-3 text-right">
+                      <div>
+                        <p className="font-bold text-gray-800">${Number(p.monto || 0).toLocaleString('es-MX')}</p>
+                        {p.archivo_url && (
+                          <a href={p.archivo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">📄 Ver archivo</a>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        <button onClick={() => setEditingPres(p)}
+                          className="px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-[10px] font-medium">
+                          ✏️ Editar
+                        </button>
+                        <button onClick={async () => {
+                          if (!confirm('¿Eliminar esta partida presupuestal?')) return;
+                          await fetch(`/api/mercadeo/presupuestos?id=${p.id}`, { method: 'DELETE' });
+                          setLoading(true);
+                          fetch(`/api/finanzas?anio=${anio}`).then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+                        }}
+                          className="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-[10px] font-medium">
+                          🗑️ Eliminar
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -568,6 +586,76 @@ export default function Finanzas() {
                 Guardar Partida
               </button>
               <button type="button" onClick={() => setShowPresForm(false)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium">
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {editingPres && (
+        <Modal title="Editar Partida Presupuestal" onClose={() => setEditingPres(null)}>
+          <form onSubmit={async e => {
+            e.preventDefault();
+            const res = await fetch('/api/mercadeo/presupuestos', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: editingPres.id,
+                titulo: editingPres.titulo,
+                descripcion: editingPres.descripcion,
+                monto: Number(editingPres.monto || 0),
+                fecha: editingPres.fecha,
+                estado: editingPres.estado
+              })
+            });
+            if (res.ok) {
+              setEditingPres(null);
+              setLoading(true);
+              fetch(`/api/finanzas?anio=${anio}`).then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+            } else {
+              const d = await res.json();
+              alert(d.error || 'Error al actualizar');
+            }
+          }} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Título *</label>
+              <input required value={editingPres.titulo} onChange={e => setEditingPres({ ...editingPres, titulo: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
+              <textarea value={editingPres.descripcion || ''} onChange={e => setEditingPres({ ...editingPres, descripcion: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" rows={2} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Monto (MXN) *</label>
+                <input required type="number" min="0" step="0.01" value={String(editingPres.monto ?? '')}
+                  onChange={e => setEditingPres({ ...editingPres, monto: Number(e.target.value) })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Fecha *</label>
+                <input required type="date" value={editingPres.fecha}
+                  onChange={e => setEditingPres({ ...editingPres, fecha: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Estado</label>
+              <select value={editingPres.estado} onChange={e => setEditingPres({ ...editingPres, estado: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="activo">Activo</option>
+                <option value="inactivo">Inactivo</option>
+              </select>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="submit" className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">
+                Guardar Cambios
+              </button>
+              <button type="button" onClick={() => setEditingPres(null)}
                 className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium">
                 Cancelar
               </button>
