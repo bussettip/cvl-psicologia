@@ -25,6 +25,10 @@ interface FinanzasData {
   porMes: MesData[];
   presupuestos: Presupuesto[];
   porTipoMes: Record<string, { mes: number; tipo: string; metodo_pago: string; total: number; num: number }[]>;
+  calculoImpuestos: {
+    porMes: CalculoMes[];
+    anual: { ingresos: number; egresos_factura: number; egresos_psicologas: number; base_iva: number; iva: number; base_isr: number; isr: number };
+  };
 }
 
 interface Banco {
@@ -40,6 +44,11 @@ interface Impuesto {
   id: number; concepto: string; tipo: string; monto: number;
   fecha: string; vencimiento: string | null; estado: string;
   observaciones: string; autor_nombre: string; autor_apellido: string;
+}
+interface CalculoMes {
+  mes: number; nombre: string;
+  ingresos: number; egresos_factura: number; egresos_psicologas: number;
+  base_iva: number; iva: number; base_isr: number; isr: number;
 }
 
 const TIPO_LABELS: Record<string, string> = {
@@ -364,6 +373,83 @@ export default function Finanzas() {
 
       {tab === 'impuestos' && (
         <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl shadow p-5 border-l-4 border-blue-500">
+              <p className="text-sm font-medium text-gray-500">IVA Estimado {data.anio}</p>
+              <p className="text-2xl font-bold text-blue-600 mt-1">${data.calculoImpuestos.anual.iva.toLocaleString('es-MX', { maximumFractionDigits: 2 })}</p>
+              <p className="text-xs text-gray-400 mt-1">16% sobre base de {data.calculoImpuestos.anual.base_iva.toLocaleString('es-MX')}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow p-5 border-l-4 border-indigo-500">
+              <p className="text-sm font-medium text-gray-500">ISR Estimado {data.anio}</p>
+              <p className="text-2xl font-bold text-indigo-600 mt-1">${data.calculoImpuestos.anual.isr.toLocaleString('es-MX', { maximumFractionDigits: 2 })}</p>
+              <p className="text-xs text-gray-400 mt-1">Tarifa mensual Art. 96 LISR sobre base de {data.calculoImpuestos.anual.base_isr.toLocaleString('es-MX')}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow p-5 border-l-4 border-green-500">
+              <p className="text-sm font-medium text-gray-500">Pago a Psicólogas {data.anio}</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">${data.calculoImpuestos.anual.egresos_psicologas.toLocaleString('es-MX')}</p>
+              <p className="text-xs text-gray-400 mt-1">Tratado como factura; cada psicóloga paga sus propios impuestos</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow overflow-hidden">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <h3 className="font-bold text-sm text-gray-800">🧾 Cálculo de IVA e ISR por Mes</h3>
+              <span className="text-[10px] text-gray-400">Ingresos − gastos con factura = base. Las entregas a psicólogas se deducen solo del ISR.</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th className="text-left px-3 py-2.5 font-medium">Mes</th>
+                    <th className="text-right px-3 py-2.5 font-medium">Ingresos</th>
+                    <th className="text-right px-3 py-2.5 font-medium">Gastos</th>
+                    <th className="text-right px-3 py-2.5 font-medium">Psicólogas</th>
+                    <th className="text-right px-3 py-2.5 font-medium">Base IVA</th>
+                    <th className="text-right px-3 py-2.5 font-medium">IVA (16%)</th>
+                    <th className="text-right px-3 py-2.5 font-medium">Base ISR</th>
+                    <th className="text-right px-3 py-2.5 font-medium">ISR</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {data.calculoImpuestos.porMes.map(m => (
+                    <tr key={m.mes} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 font-medium text-gray-700">{m.nombre}</td>
+                      <td className="px-3 py-2 text-right text-gray-800">${m.ingresos.toLocaleString('es-MX')}</td>
+                      <td className="px-3 py-2 text-right text-gray-600">${m.egresos_factura.toLocaleString('es-MX')}</td>
+                      <td className="px-3 py-2 text-right text-gray-600">${m.egresos_psicologas.toLocaleString('es-MX')}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">${Math.round(m.base_iva).toLocaleString('es-MX')}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-blue-600">${m.iva.toLocaleString('es-MX', { maximumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">${Math.round(m.base_isr).toLocaleString('es-MX')}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-indigo-600">${m.isr.toLocaleString('es-MX', { maximumFractionDigits: 2 })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-50 font-bold text-gray-800">
+                  <tr>
+                    <td className="px-3 py-2.5">Total</td>
+                    <td className="px-3 py-2.5 text-right">${data.calculoImpuestos.anual.ingresos.toLocaleString('es-MX')}</td>
+                    <td className="px-3 py-2.5 text-right">${data.calculoImpuestos.anual.egresos_factura.toLocaleString('es-MX')}</td>
+                    <td className="px-3 py-2.5 text-right">${data.calculoImpuestos.anual.egresos_psicologas.toLocaleString('es-MX')}</td>
+                    <td className="px-3 py-2.5 text-right">${Math.round(data.calculoImpuestos.anual.base_iva).toLocaleString('es-MX')}</td>
+                    <td className="px-3 py-2.5 text-right text-blue-600">${data.calculoImpuestos.anual.iva.toLocaleString('es-MX', { maximumFractionDigits: 2 })}</td>
+                    <td className="px-3 py-2.5 text-right">${Math.round(data.calculoImpuestos.anual.base_isr).toLocaleString('es-MX')}</td>
+                    <td className="px-3 py-2.5 text-right text-indigo-600">${data.calculoImpuestos.anual.isr.toLocaleString('es-MX', { maximumFractionDigits: 2 })}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow p-4 border border-blue-100">
+            <h3 className="font-bold text-sm text-gray-800 mb-2">ℹ️ Metodología</h3>
+            <ul className="text-xs text-gray-600 space-y-1 list-disc pl-4">
+              <li><b>Base IVA</b> = Ingresos cobrados − Gastos de la clínica (con factura). IVA = 16% de la base.</li>
+              <li><b>Base ISR</b> = Ingresos cobrados − Gastos de la clínica − Pagos a psicólogas.</li>
+              <li>Los <b>egresos a psicólogas</b> se registran como factura: son deducibles para la clínica, pero <b>no generan IVA acreditable</b> porque cada psicóloga cubre sus propios impuestos.</li>
+              <li>El ISR usa la tarifa mensual de pagos provisionales del Art. 96 LISR (actividad empresarial y profesional).</li>
+              <li>Los montos son <b>estimaciones</b>; consulta a tu contador para el cálculo definitivo.</li>
+            </ul>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white rounded-lg shadow p-4 border-l-4 border-amber-500">
               <p className="text-sm font-medium text-gray-500">Pendientes</p>

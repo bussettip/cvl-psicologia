@@ -2,6 +2,36 @@ import { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 
+const TARIFA_ISR = [
+  { li: 0.01, ls: 746.04, cf: 0.00, t: 0.0192 },
+  { li: 746.05, ls: 6332.05, cf: 14.32, t: 0.0640 },
+  { li: 6332.06, ls: 11128.01, cf: 371.83, t: 0.1088 },
+  { li: 11128.02, ls: 12935.82, cf: 893.63, t: 0.1600 },
+  { li: 12935.83, ls: 15487.71, cf: 1182.88, t: 0.1792 },
+  { li: 15487.72, ls: 31236.49, cf: 1640.18, t: 0.2136 },
+  { li: 31236.50, ls: 49233.00, cf: 5004.12, t: 0.2352 },
+  { li: 49233.01, ls: 93993.90, cf: 9236.89, t: 0.3000 },
+  { li: 93993.91, ls: 125325.20, cf: 22665.17, t: 0.3200 },
+  { li: 125325.21, ls: 375975.61, cf: 32691.18, t: 0.3400 },
+  { li: 375975.62, ls: Infinity, cf: 117912.32, t: 0.3500 }
+];
+
+function calcISR(base: number): number {
+  if (base <= 0) return 0;
+  for (const r of TARIFA_ISR) {
+    if (base >= r.li && base <= r.ls) return r.cf + (base - r.li) * r.t;
+  }
+  return base * 0.35;
+}
+
+function calcImpuestosMes(ingresos: number, egresosFactura: number, egresosPsicologas: number) {
+  const baseIva = Math.max(0, ingresos - egresosFactura);
+  const iva = baseIva * 0.16;
+  const baseIsr = Math.max(0, ingresos - egresosFactura - egresosPsicologas);
+  const isr = calcISR(baseIsr);
+  return { ingresos, egresos_factura: egresosFactura, egresos_psicologas: egresosPsicologas, base_iva: baseIva, iva, base_isr: baseIsr, isr };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -91,6 +121,18 @@ export async function GET(req: NextRequest) {
     const beneficio = Number(r.ingreso_anual) - Number(r.gasto_anual);
     const totalPresupuesto = Number(r.presupuesto_anual);
 
+    const calculoImpuestosPorMes = porMes.map(m => calcImpuestosMes(m.ingreso, m.gasto, m.entrega));
+    const calculoImpuestosAnual = calculoImpuestosPorMes.reduce((acc, m) => {
+      acc.ingresos += m.ingresos;
+      acc.egresos_factura += m.egresos_factura;
+      acc.egresos_psicologas += m.egresos_psicologas;
+      acc.base_iva += m.base_iva;
+      acc.iva += m.iva;
+      acc.base_isr += m.base_isr;
+      acc.isr += m.isr;
+      return acc;
+    }, { ingresos: 0, egresos_factura: 0, egresos_psicologas: 0, base_iva: 0, iva: 0, base_isr: 0, isr: 0 });
+
     return NextResponse.json({
       anio,
       resumen: {
@@ -112,7 +154,11 @@ export async function GET(req: NextRequest) {
         ...p,
         fecha: p.fecha ? new Date(p.fecha).toISOString().split('T')[0] : p.fecha
       })),
-      porTipoMes
+      porTipoMes,
+      calculoImpuestos: {
+        porMes: calculoImpuestosPorMes.map((m, i) => ({ mes: i + 1, nombre: MESES[i], ...m })),
+        anual: calculoImpuestosAnual
+      }
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
