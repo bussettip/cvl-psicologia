@@ -61,7 +61,7 @@ const METODO_LABELS: Record<string, string> = {
 };
 
 export default function Finanzas() {
-  const [tab, setTab] = useState<'presupuesto' | 'bancos' | 'impuestos' | 'kpi'>('presupuesto');
+  const [tab, setTab] = useState<'presupuesto' | 'bancos' | 'facturas' | 'impuestos' | 'kpi'>('presupuesto');
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [data, setData] = useState<FinanzasData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +71,12 @@ export default function Finanzas() {
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [impuestos, setImpuestos] = useState<Impuesto[]>([]);
   const [user, setUser] = useState<any>(null);
+
+  const [facturas, setFacturas] = useState<any[]>([]);
+  const [factAnio, setFactAnio] = useState(new Date().getFullYear());
+  const [factMes, setFactMes] = useState(new Date().getMonth() + 1);
+  const [factTipo, setFactTipo] = useState('recibidas');
+  const [satStatus, setSatStatus] = useState('');
 
   const [showPresForm, setShowPresForm] = useState(false);
   const [presForm, setPresForm] = useState({ titulo: '', descripcion: '', fecha: '', monto: '' });
@@ -98,6 +104,12 @@ export default function Finanzas() {
     }).catch(() => {});
   };
 
+  const loadFacturas = () => {
+    fetch(`/api/facturas?anio=${factAnio}&mes=${factMes}`).then(r => r.json()).then(d => {
+      if (!d.error) setFacturas(d.facturas || []);
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     setLoading(true);
     fetch(`/api/finanzas?anio=${anio}`)
@@ -111,6 +123,10 @@ export default function Finanzas() {
     loadBancos();
     loadImpuestos();
   }, [anio]);
+
+  useEffect(() => {
+    if (tab === 'facturas') loadFacturas();
+  }, [tab, factAnio, factMes]);
 
   if (loading) return <div className="text-center py-12 text-gray-500">Cargando finanzas...</div>;
   if (error) return <div className="bg-red-50 text-red-700 p-4 rounded-lg">{error}</div>;
@@ -144,6 +160,10 @@ export default function Finanzas() {
         <button onClick={() => setTab('bancos')}
           className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'bancos' ? 'bg-sky-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
           🏦 Bancos
+        </button>
+        <button onClick={() => setTab('facturas')}
+          className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'facturas' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+          📄 Facturas SAT
         </button>
         <button onClick={() => setTab('impuestos')}
           className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'impuestos' ? 'bg-amber-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
@@ -367,6 +387,152 @@ export default function Finanzas() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'facturas' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl shadow p-4 border border-teal-100">
+            <h3 className="font-bold text-sm text-gray-800 mb-1">📥 Descargar Facturas del SAT</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Usa el Web Service oficial de descarga masiva con tu <b>FIEL</b> (.cer y .key). Los archivos se procesan en memoria y
+              <b> no se guarda tu contraseña ni tu .key</b> en el sistema. Los XML descargados se almacenan y se indexan por mes.
+            </p>
+            <form onSubmit={async e => {
+              e.preventDefault();
+              const form = e.target as HTMLFormElement;
+              const fd = new FormData(form);
+              setSatStatus('⏳ Conectando con el SAT... esto puede tardar 1-2 minutos');
+              setFacturas([]);
+              try {
+                const res = await fetch('/api/sat/descargar', { method: 'POST', body: fd });
+                const d = await res.json();
+                if (d.error) setSatStatus(`❌ ${d.error}`);
+                else {
+                  const icon = d.message === 'Descarga completada' ? '✅' : '⚠️';
+                  setSatStatus(`${icon} Total: ${d.total} • Guardadas: ${d.guardadas} • Duplicadas: ${d.duplicadas}${d.errores?.length ? ` • Errores: ${d.errores.length}` : ''}`);
+                  loadFacturas();
+                }
+              } catch {
+                setSatStatus('❌ Error de conexión al descargar');
+              }
+            }} className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Certificado (.cer) *</label>
+                  <input required type="file" accept=".cer" name="cer"
+                    className="w-full border rounded-lg px-3 py-2 text-sm file:mr-2 file:px-2 file:py-1 file:rounded file:border-0 file:bg-teal-600 file:text-white file:text-xs" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Llave privada (.key) *</label>
+                  <input required type="file" accept=".key,.pem" name="key"
+                    className="w-full border rounded-lg px-3 py-2 text-sm file:mr-2 file:px-2 file:py-1 file:rounded file:border-0 file:bg-teal-600 file:text-white file:text-xs" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Contraseña de la FIEL *</label>
+                  <input required type="password" name="password" autoComplete="off"
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="••••••••" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Mes *</label>
+                  <select name="mes" value={factMes} onChange={e => setFactMes(Number(e.target.value))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => (
+                      <option key={i} value={i + 1}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Año *</label>
+                  <input type="number" name="anio" min="2017" max={new Date().getFullYear()} value={factAnio}
+                    onChange={e => setFactAnio(Number(e.target.value))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+                  <select name="tipo" value={factTipo} onChange={e => setFactTipo(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    <option value="recibidas">Recibidas</option>
+                    <option value="emitidas">Emitidas</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit"
+                className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium">
+                ⬇️ Descargar Facturas del Mes
+              </button>
+            </form>
+            {satStatus && <p className="mt-3 text-xs text-gray-600 whitespace-pre-line">{satStatus}</p>}
+          </div>
+
+          <div className="flex gap-2 items-center">
+            <button onClick={loadFacturas}
+              className="px-4 py-2 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded-lg text-sm font-medium">
+              🔄 Refrescar Listado
+            </button>
+            <span className="text-xs text-gray-500">{facturas.length} factura(s) de {factMes}/{factAnio}</span>
+          </div>
+
+          <div className="bg-white rounded-xl shadow overflow-hidden">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <h3 className="font-bold text-sm text-gray-800">Facturas {factMes}/{factAnio} ({factTipo})</h3>
+              <span className="text-[10px] text-gray-400">Total del mes: ${facturas.reduce((s, f) => s + Number(f.total || 0), 0).toLocaleString('es-MX')}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th className="text-left px-3 py-2.5 font-medium">Fecha</th>
+                    <th className="text-left px-3 py-2.5 font-medium">Emisor</th>
+                    <th className="text-left px-3 py-2.5 font-medium">RFC</th>
+                    <th className="text-right px-3 py-2.5 font-medium">Subtotal</th>
+                    <th className="text-right px-3 py-2.5 font-medium">IVA</th>
+                    <th className="text-right px-3 py-2.5 font-medium">Total</th>
+                    <th className="text-center px-3 py-2.5 font-medium">Tipo</th>
+                    <th className="text-center px-3 py-2.5 font-medium">XML</th>
+                    <th className="text-center px-3 py-2.5 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {facturas.length === 0 ? (
+                    <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400 text-xs italic">Sin facturas. Descarga las del mes con tu FIEL.</td></tr>
+                  ) : facturas.map(f => (
+                    <tr key={f.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 text-gray-500">{f.fecha ? String(f.fecha).slice(0, 10) : '—'}</td>
+                      <td className="px-3 py-2 font-medium text-gray-800 max-w-[180px] truncate">{f.emisor || '—'}</td>
+                      <td className="px-3 py-2 text-gray-500">{f.rfc_emisor || '—'}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">${Number(f.subtotal).toLocaleString('es-MX')}</td>
+                      <td className="px-3 py-2 text-right text-blue-600">${Number(f.iva).toLocaleString('es-MX')}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-gray-800">${Number(f.total).toLocaleString('es-MX')}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600">
+                          {f.tipo === 'I' ? 'Ingreso' : f.tipo === 'E' ? 'Egreso' : f.tipo === 'P' ? 'Pago' : f.tipo}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {f.archivo_xml && (
+                          <a href={f.archivo_xml} target="_blank" rel="noopener noreferrer"
+                            className="text-teal-600 hover:underline">📄 Ver</a>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <button onClick={async () => {
+                          if (!confirm('¿Eliminar esta factura y su XML?')) return;
+                          await fetch(`/api/facturas?id=${f.id}`, { method: 'DELETE' });
+                          loadFacturas();
+                        }}
+                          className="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-[10px] font-medium">
+                          Eliminar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
