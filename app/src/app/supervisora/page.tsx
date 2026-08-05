@@ -611,7 +611,8 @@ export default function SupervisoraPage() {
                   const items: string[] = editingRegla === r.id ? editReglaItems : (Array.isArray(r.items) ? r.items : (() => { try { return JSON.parse(r.items); } catch { return []; } })());
                   const colors: Record<string, string> = {
                     financieras: 'green', sesiones: 'blue', accesos: 'purple', evaluacion: 'amber',
-                    asignacion: 'indigo', derechos: 'green', obligaciones: 'red', flujo: 'gray'
+                    asignacion: 'indigo', derechos: 'green', obligaciones: 'red', flujo: 'gray',
+                    principios: 'teal'
                   };
                   const c = colors[r.seccion] || 'gray';
                   const isEditing = editingRegla === r.id;
