@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getUsuario, clearUsuario } from '@/lib/auth';
 import Finanzas from '@/components/Finanzas';
+import Contabilidad from '@/components/Contabilidad';
 
 interface Estadisticas {
   totalPacientes: number;
@@ -64,7 +65,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
   const [showPsicologaMenu, setShowPsicologaMenu] = useState(false);
-  const [seccion, setSeccion] = useState<'principal' | 'finanzas'>('principal');
+  const [seccion, setSeccion] = useState<'principal' | 'finanzas' | 'contabilidad'>('principal');
 
   useEffect(() => {
     setMounted(true);
@@ -144,6 +145,10 @@ export default function Dashboard() {
                 className={`px-3 py-2 text-sm font-medium rounded-md ${seccion === 'finanzas' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}>
                 💰 Finanzas
               </button>
+              <button onClick={() => setSeccion('contabilidad')}
+                className={`px-3 py-2 text-sm font-medium rounded-md ${seccion === 'contabilidad' ? 'text-sky-600 bg-sky-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}>
+                🧾 Contabilidad
+              </button>
               <div className="relative" onMouseLeave={() => setShowPsicologaMenu(false)}>
                 <button onClick={() => setShowPsicologaMenu(!showPsicologaMenu)}
                   className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md flex items-center gap-1">
@@ -190,6 +195,8 @@ export default function Dashboard() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {seccion === 'finanzas' ? (
           <Finanzas />
+        ) : seccion === 'contabilidad' ? (
+          <Contabilidad />
         ) : (
         <>
         {/* Estadísticas */}
