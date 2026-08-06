@@ -4,9 +4,10 @@ import { useRouter } from 'next/navigation';
 import DictationButton from '@/components/DictationButton';
 import CameraCapture from '@/components/CameraCapture';
 import FingerprintCapture from '@/components/FingerprintCapture';
+import SatConfig from '@/components/SatConfig';
 
 
-type Tab = 'psicologas' | 'pacientes' | 'asignaciones' | 'supervision' | 'personal' | 'libros';
+type Tab = 'psicologas' | 'pacientes' | 'asignaciones' | 'supervision' | 'personal' | 'libros' | 'contabilidad';
 
 interface Usuario {
   id: number; nombre: string; apellido: string; email: string; telefono: string; rol: string; activo: number; created_at: string;
@@ -324,7 +325,7 @@ export default function AdminPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex gap-2 mb-6 border-b pb-2">
-          {([['psicologas','👩‍⚕️ Psicólogas'],['personal','👤 Personal'],['pacientes','🧑 Pacientes'],['asignaciones','📋 Tratamientos'],['supervision','👁️ Supervisión'],['libros','📚 Libros']] as [Tab,string][]).map(([t,label]) => (
+          {([['psicologas','👩‍⚕️ Psicólogas'],['personal','👤 Personal'],['pacientes','🧑 Pacientes'],['asignaciones','📋 Tratamientos'],['supervision','👁️ Supervisión'],['libros','📚 Libros'],['contabilidad','🧾 Contabilidad']] as [Tab,string][]).map(([t,label]) => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${tab===t ? 'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {label}
@@ -909,6 +910,11 @@ export default function AdminPage() {
               </table>
             </div>
           </div>
+        )}
+
+        {/* ===== CONTABILIDAD ===== */}
+        {tab === 'contabilidad' && (
+          <SatConfig />
         )}
       </div>
 

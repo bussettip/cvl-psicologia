@@ -9,18 +9,25 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@nodecfdi/cfdi-expresiones": "^2.1.6",
     "@nodecfdi/sat-ws-descarga-masiva": "^2.0.0",
     "bcryptjs": "^3.0.3",
+    "cfdi-sat-nodejs": "^3.1.0",
     "fast-xml-parser": "^5.10.1",
     "mysql2": "^3.23.1",
     "next": "16.2.12",
+    "pdfkit": "^0.19.1",
+    "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "soap": "^1.10.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pdfkit": "^0.17.6",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

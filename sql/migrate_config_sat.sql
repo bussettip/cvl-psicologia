@@ -1,0 +1,18 @@
+USE cvl_psicologia;
+
+CREATE TABLE IF NOT EXISTS config_sat (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  rfc VARCHAR(20) DEFAULT NULL,
+  razon_social VARCHAR(300) DEFAULT NULL,
+  regimen_fiscal VARCHAR(10) DEFAULT NULL,
+  codigo_postal VARCHAR(10) DEFAULT NULL,
+  cer TEXT DEFAULT NULL,
+  key_enc TEXT DEFAULT NULL,
+  password_enc TEXT DEFAULT NULL,
+  updated_by INT DEFAULT NULL,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_config_sat_rfc (rfc)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO config_sat (id) VALUES (1)
+ON DUPLICATE KEY UPDATE id = id;

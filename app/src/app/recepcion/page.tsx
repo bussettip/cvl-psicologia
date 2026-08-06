@@ -37,6 +37,15 @@ interface Gasto {
   solicitante_nombre: string; solicitante_apellido: string;
   autorizador_nombre: string; autorizador_apellido: string;
 }
+interface SolicitudFactura {
+  id: number; paciente_id: number | null; paciente_nombre: string | null; concepto: string; cantidad: number; unidad: string;
+  subtotal: number; iva: number; total: number; rfc_receptor: string; razon_social_receptor: string;
+  regimen_fiscal_receptor: string; uso_cfdi: string; forma_pago: string; metodo_pago: string;
+  estado: string; comentario_supervisora: string | null; serie: string | null; folio: number | null;
+  uuid: string | null; xml_path: string | null; pdf_path: string | null; error_timbrado: string | null;
+  created_at: string; solicitante_nombre: string | null; solicitante_apellido: string | null;
+  validador_nombre: string | null; validador_apellido: string | null;
+}
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -54,13 +63,14 @@ export default function RecepcionPage() {
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [citas, setCitas] = useState<Cita[]>([]);
   const [libros, setLibros] = useState<any[]>([]);
+  const [facturas, setFacturas] = useState<SolicitudFactura[]>([]);
 
   const [fechaActual, setFechaActual] = useState(new Date());
   const [diaSeleccionado, setDiaSeleccionado] = useState<string | null>(null);
   const [showCobroForm, setShowCobroForm] = useState(false);
   const [filtroMes, setFiltroMes] = useState(new Date().getMonth() + 1);
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear());
-  const [activeTab, setActiveTab] = useState<'cobros'|'entregas'|'gastos'|'citas'>('cobros');
+  const [activeTab, setActiveTab] = useState<'cobros'|'entregas'|'gastos'|'citas'|'facturas'>('cobros');
 
   const [cobroForm, setCobroForm] = useState({
     paciente_id: '', tipo: 'sesion', concepto: '', monto: MONTO_SESION.toString(),
@@ -77,6 +87,16 @@ export default function RecepcionPage() {
   const [showGastoForm, setShowGastoForm] = useState(false);
   const [gastoForm, setGastoForm] = useState({ solicitado_por: '', proveedor: '', concepto: '', monto: '', metodo_pago: 'efectivo', fecha: '', observaciones: '' });
   const [gastoFile, setGastoFile] = useState<File | null>(null);
+
+  const [showFacturaForm, setShowFacturaForm] = useState(false);
+  const [facturaForm, setFacturaForm] = useState({
+    paciente_id: '', concepto: '', cantidad: '1', unidad: 'SERVICIO',
+    subtotal: '', iva: '', total: '',
+    rfc_receptor: 'XAXX010101000', razon_social_receptor: 'PUBLICO EN GENERAL',
+    regimen_fiscal_receptor: '616', uso_cfdi: 'S01', forma_pago: '01', metodo_pago: 'PUE',
+  });
+  const [facturaIva, setFacturaIva] = useState(true);
+  const [guardandoFactura, setGuardandoFactura] = useState(false);
 
   const [showCitaForm, setShowCitaForm] = useState(false);
   const [citaForm, setCitaForm] = useState({ paciente_id: '', psicologa_id: '', fecha: '', hora_inicio: '', hora_fin: '', tipo: 'sesion', motivo: '', notas: '' });
@@ -151,6 +171,7 @@ export default function RecepcionPage() {
       loadEntregas();
       loadGastos();
       loadCitas();
+      loadFacturas();
     } catch (e) { console.error(e); }
   };
 
@@ -167,6 +188,14 @@ export default function RecepcionPage() {
       const res = await fetch(`/api/gastos?mes=${filtroMes}&anio=${filtroAnio}`);
       const data = await res.json();
       setGastos(data.gastos || []);
+    } catch (e) { console.error(e); }
+  };
+
+  const loadFacturas = async () => {
+    try {
+      const res = await fetch(`/api/solicitudes-factura?mes=${filtroMes}&anio=${filtroAnio}`);
+      const data = await res.json();
+      setFacturas(data.solicitudes || []);
     } catch (e) { console.error(e); }
   };
 
@@ -414,6 +443,50 @@ export default function RecepcionPage() {
       setGastoFile(null);
       loadGastos();
     } catch (e: any) { alert('Error: ' + e.message); }
+  };
+
+  const crearFactura = async () => {
+    if (!facturaForm.concepto || !facturaForm.subtotal || !facturaForm.rfc_receptor || !facturaForm.razon_social_receptor) {
+      alert('Completa concepto, subtotal, RFC y razón social del receptor');
+      return;
+    }
+    setGuardandoFactura(true);
+    try {
+      const sub = Number(facturaForm.subtotal);
+      const iva = facturaIva ? Math.round(sub * 0.16 * 100) / 100 : 0;
+      const total = Math.round((sub + iva) * 100) / 100;
+      const res = await fetch('/api/solicitudes-factura', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paciente_id: facturaForm.paciente_id ? Number(facturaForm.paciente_id) : null,
+          concepto: facturaForm.concepto,
+          cantidad: Number(facturaForm.cantidad || 1),
+          unidad: facturaForm.unidad,
+          subtotal: sub,
+          iva,
+          total,
+          rfc_receptor: facturaForm.rfc_receptor,
+          razon_social_receptor: facturaForm.razon_social_receptor,
+          regimen_fiscal_receptor: facturaForm.regimen_fiscal_receptor,
+          uso_cfdi: facturaForm.uso_cfdi,
+          forma_pago: facturaForm.forma_pago,
+          metodo_pago: facturaForm.metodo_pago,
+        })
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      const d = await res.json();
+      alert(`Solicitud de factura F${d.folio} creada. Queda pendiente de validación por la supervisora.`);
+      setShowFacturaForm(false);
+      setFacturaForm({
+        paciente_id: '', concepto: '', cantidad: '1', unidad: 'SERVICIO',
+        subtotal: '', iva: '', total: '',
+        rfc_receptor: 'XAXX010101000', razon_social_receptor: 'PUBLICO EN GENERAL',
+        regimen_fiscal_receptor: '616', uso_cfdi: 'S01', forma_pago: '01', metodo_pago: 'PUE',
+      });
+      setFacturaIva(true);
+      loadFacturas();
+    } catch (e: any) { alert('Error: ' + e.message); }
+    setGuardandoFactura(false);
   };
 
   const autorizarGasto = async (id: number) => {
@@ -712,6 +785,12 @@ export default function RecepcionPage() {
                 📅 Nueva Cita
               </button>
             )}
+            {activeTab === 'facturas' && (
+              <button onClick={() => setShowFacturaForm(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
+                🧾 Nueva Factura
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -734,6 +813,10 @@ export default function RecepcionPage() {
           <button onClick={() => setActiveTab('citas')}
             className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'citas' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
             📅 Citas ({citas.length})
+          </button>
+          <button onClick={() => setActiveTab('facturas')}
+            className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'facturas' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+            🧾 Facturas ({facturas.length})
           </button>
         </div>
 
@@ -1394,6 +1477,90 @@ export default function RecepcionPage() {
         </div>
       )}
 
+      {/* ==================== TAB: FACTURAS ==================== */}
+      {activeTab === 'facturas' && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+            <div className="bg-white rounded-lg shadow p-3 border-l-4 border-blue-500">
+              <p className="text-xs text-gray-500">Total Solicitudes</p>
+              <p className="text-xl font-bold text-gray-800">{facturas.length}</p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-3 border-l-4 border-yellow-500">
+              <p className="text-xs text-gray-500">Pendientes</p>
+              <p className="text-xl font-bold text-yellow-600">{facturas.filter(f => f.estado === 'pendiente').length}</p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-3 border-l-4 border-green-500">
+              <p className="text-xs text-gray-500">Timbradas</p>
+              <p className="text-xl font-bold text-green-600">{facturas.filter(f => f.estado === 'timbrada').length}</p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-3 border-l-4 border-red-500">
+              <p className="text-xs text-gray-500">Total Timbrado</p>
+              <p className="text-xl font-bold text-red-600">${facturas.filter(f => f.estado === 'timbrada').reduce((a, f) => a + Number(f.total), 0).toLocaleString('es-MX')}</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow p-4">
+            <h3 className="font-bold text-sm text-gray-800 mb-3">Historial de Solicitudes de Factura</h3>
+            {facturas.length === 0 ? (
+              <p className="text-xs text-gray-400 italic text-center py-6">Sin solicitudes este mes. Usa el botón "Nueva Factura" para crear una.</p>
+            ) : (
+              <div className="space-y-2">
+                {facturas.map(f => (
+                  <div key={f.id} className="flex items-center justify-between p-3 rounded-lg border text-xs">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-gray-700">{f.serie}{f.folio ? `-${f.folio}` : ''} • {f.concepto}</span>
+                        {f.paciente_nombre && <span className="text-gray-400">👤 {f.paciente_nombre}</span>}
+                      </div>
+                      <p className="text-gray-500 mt-0.5">
+                        RFC: {f.rfc_receptor} • {f.razon_social_receptor}
+                      </p>
+                      <p className="text-gray-400 mt-0.5">
+                        Solicitada por: {f.solicitante_nombre || '—'} {f.solicitante_apellido || ''} • {new Date(f.created_at).toLocaleDateString('es-MX')}
+                        {f.validador_nombre && ` • Validada por: ${f.validador_nombre} ${f.validador_apellido}`}
+                      </p>
+                      {f.comentario_supervisora && (
+                        <p className="text-orange-500 mt-0.5">💬 {f.comentario_supervisora}</p>
+                      )}
+                      {f.estado === 'error' && f.error_timbrado && (
+                        <p className="text-red-500 mt-0.5 truncate" title={f.error_timbrado}>⚠️ {f.error_timbrado}</p>
+                      )}
+                      {f.uuid && (
+                        <p className="text-gray-400 mt-0.5 text-[10px]">UUID: {f.uuid}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-gray-800 text-sm">${Number(f.total).toLocaleString('es-MX')}</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                        f.estado === 'timbrada' ? 'bg-green-100 text-green-700' :
+                        f.estado === 'aprobada' ? 'bg-blue-100 text-blue-700' :
+                        f.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-700' :
+                        f.estado === 'rechazada' ? 'bg-red-100 text-red-700' :
+                        'bg-orange-100 text-orange-700'
+                      }`}>{f.estado}</span>
+                      <div className="flex flex-col gap-1">
+                        {f.pdf_path && (
+                          <a href={`/${f.pdf_path}`} target="_blank" rel="noopener noreferrer"
+                            className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-medium text-center">
+                            📄 PDF
+                          </a>
+                        )}
+                        {f.xml_path && (
+                          <a href={`/${f.xml_path}`} target="_blank" rel="noopener noreferrer"
+                            className="px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-[10px] font-medium text-center">
+                            📎 XML
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
       {/* Modal Nueva Entrega */}
       {showEntregaForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1827,6 +1994,179 @@ export default function RecepcionPage() {
                   📅 {citaBatch ? `Programar ${citaBatchNum} Citas` : 'Programar Cita'}
                 </button>
                 <button onClick={() => setShowCitaForm(false)}
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nueva Factura */}
+      {showFacturaForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-gray-800">🧾 Solicitar Factura</h3>
+                <button onClick={() => setShowFacturaForm(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Paciente (opcional)</label>
+                  <select value={facturaForm.paciente_id}
+                    onChange={e => setFacturaForm({...facturaForm, paciente_id: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg text-sm">
+                    <option value="">— Sin paciente / Público en general —</option>
+                    {pacientes.map(p => (
+                      <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Concepto *</label>
+                  <input value={facturaForm.concepto}
+                    onChange={e => setFacturaForm({...facturaForm, concepto: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Ej: Servicios de psicología" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Cantidad</label>
+                    <input type="number" step="0.01" min="0" value={facturaForm.cantidad}
+                      onChange={e => setFacturaForm({...facturaForm, cantidad: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Unidad</label>
+                    <select value={facturaForm.unidad}
+                      onChange={e => setFacturaForm({...facturaForm, unidad: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg text-sm">
+                      <option value="SERVICIO">Servicio</option>
+                      <option value="ACT">Actividad</option>
+                      <option value="E48">Unidad de servicio</option>
+                      <option value="SES">Sesión</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Subtotal (MXN) *</label>
+                    <input type="number" step="0.01" min="0" value={facturaForm.subtotal}
+                      onChange={e => setFacturaForm({...facturaForm, subtotal: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 mt-6 cursor-pointer">
+                      <input type="checkbox" checked={facturaIva} onChange={e => setFacturaIva(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded" />
+                      <span className="text-sm font-medium text-gray-700">Incluir IVA 16%</span>
+                    </label>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Total: ${(Number(facturaForm.subtotal || 0) + (facturaIva ? Number(facturaForm.subtotal || 0) * 0.16 : 0)).toLocaleString('es-MX')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t pt-3 mt-1">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">Datos del receptor</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">RFC *</label>
+                      <input value={facturaForm.rfc_receptor}
+                        onChange={e => setFacturaForm({...facturaForm, rfc_receptor: e.target.value.toUpperCase()})}
+                        className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="XAXX010101000" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Régimen Fiscal</label>
+                      <select value={facturaForm.regimen_fiscal_receptor}
+                        onChange={e => setFacturaForm({...facturaForm, regimen_fiscal_receptor: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg text-sm">
+                        <option value="616">616 - Sin obligaciones fiscales</option>
+                        <option value="601">601 - General de Ley Personas Morales</option>
+                        <option value="603">603 - Personas Morales con Fines no Lucrativos</option>
+                        <option value="605">605 - Sueldos y Salarios</option>
+                        <option value="606">606 - Arrendamiento</option>
+                        <option value="608">608 - Demás ingresos</option>
+                        <option value="610">610 - Residentes en el Extranjero</option>
+                        <option value="611">611 - Ingresos por Dividendos</option>
+                        <option value="612">612 - Personas Físicas con Actividades Empresariales</option>
+                        <option value="614">614 - Ingresos por intereses</option>
+                        <option value="615">615 - Ingresos por obtención de premios</option>
+                        <option value="621">621 - Régimen de Incorporación Fiscal</option>
+                        <option value="625">625 - Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas</option>
+                        <option value="626">626 - Régimen Simplificado de Confianza</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Razón Social *</label>
+                    <input value={facturaForm.razon_social_receptor}
+                      onChange={e => setFacturaForm({...facturaForm, razon_social_receptor: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Nombre completo o razón social" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Uso CFDI</label>
+                      <select value={facturaForm.uso_cfdi}
+                        onChange={e => setFacturaForm({...facturaForm, uso_cfdi: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg text-sm">
+                        <option value="S01">S01 - Sin efectos fiscales</option>
+                        <option value="G01">G01 - Adquisición de mercancías</option>
+                        <option value="G02">G02 - Devoluciones, descuentos y bonificaciones</option>
+                        <option value="G03">G03 - Gastos en general</option>
+                        <option value="I01">I01 - Construcciones</option>
+                        <option value="I02">I02 - Mobiliario y equipo de oficina</option>
+                        <option value="I03">I03 - Equipo de transporte</option>
+                        <option value="I04">I04 - Equipo de cómputo</option>
+                        <option value="I05">I05 - Dados, troqueles, moldes, matrices y herramental</option>
+                        <option value="I06">I06 - Comunicaciones telefónicas</option>
+                        <option value="I07">I07 - Comunicaciones satelitales</option>
+                        <option value="I08">I08 - Otra maquinaria y equipo</option>
+                        <option value="D01">D01 - Honorarios médicos, dentales y gastos hospitalarios</option>
+                        <option value="D02">D02 - Gastos médicos por incapacidad o discapacidad</option>
+                        <option value="D03">D03 - Gastos funerales</option>
+                        <option value="D04">D04 - Donativos</option>
+                        <option value="D05">D05 - Intereses reales efectivamente pagados por créditos hipotecarios</option>
+                        <option value="D06">D06 - Aportaciones voluntarias al SAR</option>
+                        <option value="D07">D07 - Primas por seguros de gastos médicos</option>
+                        <option value="D08">D08 - Gastos de transportación escolar obligatoria</option>
+                        <option value="D09">D09 - Depósitos en cuentas para el ahorro, primas que tengan como base planes de pensiones</option>
+                        <option value="D10">D10 - Pagos por servicios educativos (colegiaturas)</option>
+                        <option value="P01">P01 - Por definir</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Forma de Pago</label>
+                      <select value={facturaForm.forma_pago}
+                        onChange={e => setFacturaForm({...facturaForm, forma_pago: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg text-sm">
+                        <option value="01">01 - Efectivo</option>
+                        <option value="02">02 - Cheque nominativo</option>
+                        <option value="03">03 - Transferencia electrónica</option>
+                        <option value="04">04 - Tarjeta de crédito</option>
+                        <option value="28">28 - Tarjeta de débito</option>
+                        <option value="99">99 - Por definir</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Método de Pago</label>
+                      <select value={facturaForm.metodo_pago}
+                        onChange={e => setFacturaForm({...facturaForm, metodo_pago: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg text-sm">
+                        <option value="PUE">PUE - Pago en una sola exhibición</option>
+                        <option value="PPD">PPD - Pago en parcialidades</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-5">
+                <button onClick={crearFactura} disabled={guardandoFactura}
+                  className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium">
+                  {guardandoFactura ? 'Guardando...' : '🧾 Crear Solicitud'}
+                </button>
+                <button onClick={() => setShowFacturaForm(false)}
                   className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm">
                   Cancelar
                 </button>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
+import { decryptSecret } from '@/lib/satCrypto';
 import {
   Fiel,
   HttpsWebClient,
@@ -40,17 +41,37 @@ export async function POST(req: NextRequest) {
     const anio = Number(formData.get('anio'));
     const mes = Number(formData.get('mes'));
     const tipo = String(formData.get('tipo') || 'recibidas');
+    const usarPack = formData.get('usar_pack') === '1';
 
-    if (!cerFile || !keyFile) return NextResponse.json({ error: 'Sube los archivos .cer y .key de tu FIEL' }, { status: 400 });
-    if (!password) return NextResponse.json({ error: 'Escribe la contraseña de tu FIEL (.key)' }, { status: 400 });
     if (!anio || !mes || mes < 1 || mes > 12) return NextResponse.json({ error: 'Selecciona mes y año válidos' }, { status: 400 });
 
     const createdBy = getUserId(req);
 
-    const cer = Buffer.from(await cerFile.arrayBuffer()).toString('latin1');
-    const key = Buffer.from(await keyFile.arrayBuffer()).toString('latin1');
+    let cer: string;
+    let key: string;
+    let fielPassword: string;
 
-    const fiel = Fiel.create(cer, key, password);
+    if (usarPack) {
+      const [config] = await db.query('SELECT cer, key_enc, password_enc FROM config_sat WHERE id = 1') as any[];
+      if (!config[0]?.cer) {
+        return NextResponse.json({ error: 'No hay un pack de FIEL guardado. Configúralo primero en Contabilidad.' }, { status: 400 });
+      }
+      try {
+        cer = Buffer.from(config[0].cer, 'base64').toString('latin1');
+        key = decryptSecret(config[0].key_enc);
+        fielPassword = decryptSecret(config[0].password_enc);
+      } catch {
+        return NextResponse.json({ error: 'No se pudo descifrar el pack guardado. Vuelve a cargarlo en Contabilidad.' }, { status: 400 });
+      }
+    } else {
+      if (!cerFile || !keyFile) return NextResponse.json({ error: 'Sube los archivos .cer y .key de tu FIEL' }, { status: 400 });
+      if (!password) return NextResponse.json({ error: 'Escribe la contraseña de tu FIEL (.key)' }, { status: 400 });
+      cer = Buffer.from(await cerFile.arrayBuffer()).toString('latin1');
+      key = Buffer.from(await keyFile.arrayBuffer()).toString('latin1');
+      fielPassword = password;
+    }
+
+    const fiel = Fiel.create(cer, key, fielPassword);
     if (!fiel.isValid()) {
       return NextResponse.json({ error: 'La FIEL no es válida: revisa que el certificado (.cer) no esté vencido y que la contraseña sea correcta' }, { status: 400 });
     }

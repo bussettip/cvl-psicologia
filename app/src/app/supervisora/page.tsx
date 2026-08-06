@@ -4,7 +4,7 @@ import Link from 'next/link';
 import DictationButton from '@/components/DictationButton';
 
 
-type SubTab = 'resumen' | 'pacientes' | 'programas' | 'talleres' | 'cuestionario' | 'admin' | 'reglas';
+type SubTab = 'resumen' | 'pacientes' | 'programas' | 'talleres' | 'cuestionario' | 'admin' | 'reglas' | 'facturas';
 
 export default function SupervisoraPage() {
   const [user, setUser] = useState<any>(null);
@@ -30,6 +30,10 @@ export default function SupervisoraPage() {
   const [editReglaItems, setEditReglaItems] = useState<string[]>([]);
   const [nuevoItemRegla, setNuevoItemRegla] = useState('');
   const [savingRegla, setSavingRegla] = useState(false);
+  const [solicitudesFactura, setSolicitudesFactura] = useState<any[]>([]);
+  const [loadingFacturas, setLoadingFacturas] = useState(false);
+  const [comentarioFactura, setComentarioFactura] = useState<Record<number, string>>({});
+  const [procesandoFactura, setProcesandoFactura] = useState<number | null>(null);
 
   useEffect(() => {
     fetch('/api/me').then(r => r.json()).then(data => {
@@ -61,7 +65,43 @@ export default function SupervisoraPage() {
     fetch('/api/admin/reglas').then(r => r.json()).then(d => {
       setReglas(d.reglas || []);
     }).catch(() => {});
+
+    loadFacturas();
   }, []);
+
+  const loadFacturas = async () => {
+    setLoadingFacturas(true);
+    try {
+      const res = await fetch('/api/solicitudes-factura');
+      const data = await res.json();
+      setSolicitudesFactura(data.solicitudes || []);
+    } catch { setSolicitudesFactura([]); }
+    setLoadingFacturas(false);
+  };
+
+  const validarFactura = async (id: number, accion: 'aprobar' | 'rechazar' | 'retimbrar') => {
+    if (accion === 'rechazar' && !comentarioFactura[id]?.trim()) {
+      alert('Escribe un motivo para rechazar la factura');
+      return;
+    }
+    setProcesandoFactura(id);
+    try {
+      const res = await fetch('/api/solicitudes-factura', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, accion, comentario_supervisora: comentarioFactura[id] || null })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al validar');
+      if (data.error) {
+        alert(`Aprobada, pero el timbrado falló:\n${data.error}`);
+      } else {
+        alert(data.message);
+      }
+      setComentarioFactura(prev => ({ ...prev, [id]: '' }));
+      loadFacturas();
+    } catch (e: any) { alert('Error: ' + e.message); }
+    setProcesandoFactura(null);
+  };
 
   if (!user && loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><p className="text-gray-500">Cargando...</p></div>;
 
@@ -172,6 +212,7 @@ export default function SupervisoraPage() {
     { key: 'cuestionario', label: 'Cuestionario', icon: '📋' },
     { key: 'admin', label: 'Admin', icon: '⚙️' },
     { key: 'reglas', label: 'Reglas', icon: '📜' },
+    { key: 'facturas', label: 'Facturas', icon: '🧾' },
   ];
 
   return (
@@ -697,6 +738,123 @@ export default function SupervisoraPage() {
                   <p className="text-xs text-purple-600 font-medium mt-1">👁️ Supervisora (25%)</p>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* FACTURAS */}
+        {subTab === 'facturas' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg shadow p-5 border-l-4 border-yellow-500">
+                <p className="text-sm font-medium text-gray-500">⏳ Pendientes</p>
+                <p className="text-3xl font-bold text-yellow-600">{solicitudesFactura.filter(f => f.estado === 'pendiente').length}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-5 border-l-4 border-green-500">
+                <p className="text-sm font-medium text-gray-500">✅ Timbradas</p>
+                <p className="text-3xl font-bold text-green-600">{solicitudesFactura.filter(f => f.estado === 'timbrada').length}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-5 border-l-4 border-red-500">
+                <p className="text-sm font-medium text-gray-500">❌ Rechazadas</p>
+                <p className="text-3xl font-bold text-red-600">{solicitudesFactura.filter(f => f.estado === 'rechazada').length}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-5 border-l-4 border-orange-500">
+                <p className="text-sm font-medium text-gray-500">⚠️ En error</p>
+                <p className="text-3xl font-bold text-orange-600">{solicitudesFactura.filter(f => f.estado === 'error').length}</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-800">🧾 Bandeja de Facturas</h2>
+                <button onClick={loadFacturas} disabled={loadingFacturas}
+                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-medium disabled:opacity-50">
+                  {loadingFacturas ? 'Cargando...' : '🔄 Refrescar'}
+                </button>
+              </div>
+
+              {solicitudesFactura.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8">Sin solicitudes de factura</p>
+              ) : (
+                <div className="space-y-3">
+                  {solicitudesFactura.map(f => (
+                    <div key={f.id} className={`border rounded-xl p-4 ${f.estado === 'pendiente' ? 'border-yellow-300 bg-yellow-50/50' : f.estado === 'error' ? 'border-orange-300 bg-orange-50/50' : f.estado === 'rechazada' ? 'border-red-200 bg-red-50/40' : 'border-green-200 bg-green-50/40'}`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-gray-800">{f.serie}{f.folio ? `-${f.folio}` : ''}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              f.estado === 'timbrada' ? 'bg-green-100 text-green-700' :
+                              f.estado === 'aprobada' ? 'bg-blue-100 text-blue-700' :
+                              f.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-700' :
+                              f.estado === 'rechazada' ? 'bg-red-100 text-red-700' :
+                              'bg-orange-100 text-orange-700'
+                            }`}>{f.estado}</span>
+                          </div>
+                          <p className="text-sm text-gray-700 mt-1">{f.concepto}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Receptor: {f.rfc_receptor} • {f.razon_social_receptor}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Solicitado: {f.solicitante_nombre || '—'} {f.solicitante_apellido || ''} • {new Date(f.created_at).toLocaleString('es-MX')}
+                            {f.paciente_nombre && ` • 👤 ${f.paciente_nombre}`}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">Subtotal ${Number(f.subtotal).toLocaleString('es-MX')} + IVA ${Number(f.iva).toLocaleString('es-MX')}</p>
+                          {f.comentario_supervisora && <p className="text-xs text-orange-600 mt-1">💬 {f.comentario_supervisora}</p>}
+                          {f.estado === 'error' && f.error_timbrado && (
+                            <p className="text-xs text-red-600 mt-1 break-all">⚠️ {f.error_timbrado}</p>
+                          )}
+                          {f.uuid && <p className="text-xs text-gray-400 mt-1 break-all">UUID: {f.uuid}</p>}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-2xl font-bold text-gray-800">${Number(f.total).toLocaleString('es-MX')}</p>
+                          <div className="flex gap-1.5 mt-2 justify-end flex-wrap">
+                            {f.pdf_path && (
+                              <a href={`/${f.pdf_path}`} target="_blank" rel="noopener noreferrer"
+                                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-medium">
+                                📄 PDF
+                              </a>
+                            )}
+                            {f.xml_path && (
+                              <a href={`/${f.xml_path}`} target="_blank" rel="noopener noreferrer"
+                                className="px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-[10px] font-medium">
+                                📎 XML
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {(f.estado === 'pendiente' || f.estado === 'error') && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <input
+                            value={comentarioFactura[f.id] || ''}
+                            onChange={e => setComentarioFactura(prev => ({ ...prev, [f.id]: e.target.value }))}
+                            placeholder={f.estado === 'rechazada' ? 'Motivo del rechazo...' : 'Comentario (opcional)...'}
+                            className="w-full px-3 py-1.5 border rounded-lg text-xs mb-2"
+                          />
+                          <div className="flex gap-2">
+                            <button onClick={() => validarFactura(f.id, 'aprobar')} disabled={procesandoFactura === f.id}
+                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg text-xs font-medium">
+                              {procesandoFactura === f.id ? 'Procesando...' : '✅ Aprobar y Timbrar'}
+                            </button>
+                            {f.estado === 'error' && (
+                              <button onClick={() => validarFactura(f.id, 'retimbrar')} disabled={procesandoFactura === f.id}
+                                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white rounded-lg text-xs font-medium">
+                                🔄 Reintentar Timbrado
+                              </button>
+                            )}
+                            <button onClick={() => validarFactura(f.id, 'rechazar')} disabled={procesandoFactura === f.id}
+                              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg text-xs font-medium">
+                              ❌ Rechazar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
