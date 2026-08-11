@@ -46,7 +46,10 @@ export default function Finanzas() {
 
   const [showPresForm, setShowPresForm] = useState(false);
   const [presForm, setPresForm] = useState({ titulo: '', descripcion: '', fecha: '', monto: '' });
+  const [presFile, setPresFile] = useState<File | null>(null);
+  const [subiendoPres, setSubiendoPres] = useState(false);
   const [editingPres, setEditingPres] = useState<Presupuesto | null>(null);
+  const [editPresFile, setEditPresFile] = useState<File | null>(null);
 
   useEffect(() => {
     fetch('/api/me').then(r => r.json()).then(d => { if (d.user) setUser(d.user); }).catch(() => {});
@@ -182,11 +185,13 @@ export default function Finanzas() {
                       <div>
                         <p className="font-bold text-gray-800">${Number(p.monto || 0).toLocaleString('es-MX')}</p>
                         {p.archivo_url && (
-                          <a href={p.archivo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">📄 Ver archivo</a>
+                          <a href={p.archivo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            {String(p.archivo_nombre || '').toLowerCase().match(/\.(xlsx|xls)$/) ? '📊' : '📄'} {p.archivo_nombre || 'Ver archivo'}
+                          </a>
                         )}
                       </div>
                       <div className="flex gap-1">
-                        <button onClick={() => setEditingPres(p)}
+                        <button onClick={() => { setEditPresFile(null); setEditingPres(p); }}
                           className="px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-[10px] font-medium">
                           ✏️ Editar
                         </button>
@@ -301,18 +306,34 @@ export default function Finanzas() {
         <Modal title="Nueva Partida Presupuestal" onClose={() => setShowPresForm(false)}>
           <form onSubmit={async e => {
             e.preventDefault();
-            const body: any = { titulo: presForm.titulo, descripcion: presForm.descripcion, monto: Number(presForm.monto), fecha: presForm.fecha || new Date().toISOString().slice(0, 10) };
-            if (user) { body.created_by = user.id; }
-            const res = await fetch('/api/mercadeo/presupuestos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-            if (res.ok) {
-              setShowPresForm(false);
-              setPresForm({ titulo: '', descripcion: '', fecha: '', monto: '' });
-              setLoading(true);
-              fetch(`/api/finanzas?anio=${anio}`).then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
-            } else {
-              const d = await res.json();
-              alert(d.error || 'Error al guardar');
-            }
+            setSubiendoPres(true);
+            try {
+              let archivoUrl: string | null = null;
+              let archivoNombre: string | null = null;
+              if (presFile) {
+                const fd = new FormData();
+                fd.append('file', presFile);
+                const upRes = await fetch('/api/upload/presupuestos', { method: 'POST', body: fd });
+                const upData = await upRes.json();
+                if (upData.error) { alert(upData.error); setSubiendoPres(false); return; }
+                archivoUrl = upData.url;
+                archivoNombre = upData.nombre || presFile.name;
+              }
+              const body: any = { titulo: presForm.titulo, descripcion: presForm.descripcion, monto: Number(presForm.monto), fecha: presForm.fecha || new Date().toISOString().slice(0, 10), archivo_url: archivoUrl, archivo_nombre: archivoNombre };
+              if (user) { body.created_by = user.id; }
+              const res = await fetch('/api/mercadeo/presupuestos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+              if (res.ok) {
+                setShowPresForm(false);
+                setPresForm({ titulo: '', descripcion: '', fecha: '', monto: '' });
+                setPresFile(null);
+                setLoading(true);
+                fetch(`/api/finanzas?anio=${anio}`).then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+              } else {
+                const d = await res.json();
+                alert(d.error || 'Error al guardar');
+              }
+            } catch { alert('Error al subir el archivo'); }
+            setSubiendoPres(false);
           }} className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Título *</label>
@@ -338,9 +359,16 @@ export default function Finanzas() {
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
               </div>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Archivo (Excel, PDF, imagen)</label>
+              <input type="file" accept=".xlsx,.xls,.pdf,.jpg,.jpeg,.png,.doc,.docx"
+                onChange={e => setPresFile(e.target.files?.[0] || null)}
+                className="w-full border rounded-lg px-3 py-2 text-sm file:mr-2 file:px-2 file:py-1 file:rounded file:border-0 file:bg-emerald-600 file:text-white file:text-xs" />
+              {presFile && <p className="text-xs text-green-600 mt-1">📎 {presFile.name}</p>}
+            </div>
             <div className="flex gap-2 pt-2">
-              <button type="submit" className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">
-                Guardar Partida
+              <button type="submit" disabled={subiendoPres} className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium">
+                {subiendoPres ? '⏳ Guardando...' : 'Guardar Partida'}
               </button>
               <button type="button" onClick={() => setShowPresForm(false)}
                 className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium">
@@ -355,26 +383,44 @@ export default function Finanzas() {
         <Modal title="Editar Partida Presupuestal" onClose={() => setEditingPres(null)}>
           <form onSubmit={async e => {
             e.preventDefault();
-            const res = await fetch('/api/mercadeo/presupuestos', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                id: editingPres.id,
-                titulo: editingPres.titulo,
-                descripcion: editingPres.descripcion,
-                monto: Number(editingPres.monto || 0),
-                fecha: editingPres.fecha,
-                estado: editingPres.estado
-              })
-            });
-            if (res.ok) {
-              setEditingPres(null);
-              setLoading(true);
-              fetch(`/api/finanzas?anio=${anio}`).then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
-            } else {
-              const d = await res.json();
-              alert(d.error || 'Error al actualizar');
-            }
+            setSubiendoPres(true);
+            try {
+              let archivoUrl = editingPres.archivo_url || null;
+              let archivoNombre = editingPres.archivo_nombre || null;
+              if (editPresFile) {
+                const fd = new FormData();
+                fd.append('file', editPresFile);
+                const upRes = await fetch('/api/upload/presupuestos', { method: 'POST', body: fd });
+                const upData = await upRes.json();
+                if (upData.error) { alert(upData.error); setSubiendoPres(false); return; }
+                archivoUrl = upData.url;
+                archivoNombre = upData.nombre || editPresFile.name;
+              }
+              const res = await fetch('/api/mercadeo/presupuestos', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  id: editingPres.id,
+                  titulo: editingPres.titulo,
+                  descripcion: editingPres.descripcion,
+                  monto: Number(editingPres.monto || 0),
+                  fecha: editingPres.fecha,
+                  estado: editingPres.estado,
+                  archivo_url: archivoUrl,
+                  archivo_nombre: archivoNombre
+                })
+              });
+              if (res.ok) {
+                setEditingPres(null);
+                setEditPresFile(null);
+                setLoading(true);
+                fetch(`/api/finanzas?anio=${anio}`).then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+              } else {
+                const d = await res.json();
+                alert(d.error || 'Error al actualizar');
+              }
+            } catch { alert('Error al subir el archivo'); }
+            setSubiendoPres(false);
           }} className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Título *</label>
@@ -408,9 +454,16 @@ export default function Finanzas() {
                 <option value="inactivo">Inactivo</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Archivo {editingPres.archivo_nombre ? `(actual: ${editingPres.archivo_nombre})` : ''}</label>
+              <input type="file" accept=".xlsx,.xls,.pdf,.jpg,.jpeg,.png,.doc,.docx"
+                onChange={e => setEditPresFile(e.target.files?.[0] || null)}
+                className="w-full border rounded-lg px-3 py-2 text-sm file:mr-2 file:px-2 file:py-1 file:rounded file:border-0 file:bg-emerald-600 file:text-white file:text-xs" />
+              {editPresFile && <p className="text-xs text-green-600 mt-1">📎 {editPresFile.name}</p>}
+            </div>
             <div className="flex gap-2 pt-2">
-              <button type="submit" className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">
-                Guardar Cambios
+              <button type="submit" disabled={subiendoPres} className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium">
+                {subiendoPres ? '⏳ Guardando...' : 'Guardar Cambios'}
               </button>
               <button type="button" onClick={() => setEditingPres(null)}
                 className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium">
