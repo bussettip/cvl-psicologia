@@ -1,5 +1,6 @@
 -- Corrección de pacientes: se restauran las letras/tildes correctas (los caracteres estaban corruptos como "??")
 -- Fecha: 2026-08-11
+SET NAMES utf8mb4;
 UPDATE `pacientes` SET `nombre`='Laura', `apellido`='Fernández', `motivo_consulta`='Ansiedad generalizada y ataques de pánico' WHERE `id`=1;
 UPDATE `pacientes` SET `motivo_consulta`='Depresión post-parto' WHERE `id`=2;
 UPDATE `pacientes` SET `nombre`='Sofía', `apellido`='Gutiérrez', `motivo_consulta`='Duelo por pérdida familiar', `diagnostico_inicial`='Reacción ante duelo patológico (F43.2)' WHERE `id`=3;
