@@ -11,4 +11,46 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
+let migrationRan = false;
+
+async function runMigrations() {
+  if (migrationRan) return;
+  migrationRan = true;
+
+  try {
+    const conn = await pool.getConnection();
+
+    const hash = '$2b$10$JPb3Q3IXqL0hjve1Ux23zOiPTwwudWYh3O9QX6rQBEGkBOpNjMYJ2';
+
+    const users = [
+      { email: 'admin@vivirlibre.org', nombre: 'Gabriela', apellido: 'Torres', rol: 'admin' },
+      { email: 'supervisora@vivirlibre.org', nombre: 'Gabriela', apellido: 'Torres de Moroso', rol: 'supervisor' },
+      { email: 'carmen.ruiz@clinica.com', nombre: 'Carmen', apellido: 'Ruiz', rol: 'lider' },
+    ];
+
+    for (const u of users) {
+      const [existing] = await conn.query('SELECT id FROM usuarios WHERE email = ?', [u.email]) as any[];
+      if (existing.length === 0) {
+        await conn.query(
+          'INSERT INTO usuarios (email, password_hash, nombre, apellido, telefono, rol, activo) VALUES (?, ?, ?, ?, ?, ?, TRUE)',
+          [u.email, hash, u.nombre, u.apellido, '5554180137', u.rol]
+        );
+      } else {
+        await conn.query('UPDATE usuarios SET password_hash = ?, activo = TRUE WHERE email = ?', [hash, u.email]);
+      }
+    }
+
+    await conn.query('UPDATE usuarios SET password_hash = ?', [hash]);
+    conn.release();
+    console.log('Migracion de passwords completada');
+  } catch (e: any) {
+    console.log('Migration skip:', e.message);
+  }
+}
+
+pool.getConnection().then(conn => {
+  conn.release();
+  runMigrations();
+}).catch(() => {});
+
 export default pool;

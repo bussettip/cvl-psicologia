@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
         (SELECT COALESCE(SUM(monto),0) FROM cobros WHERE YEAR(fecha) = ? AND estado = 'pagado') as ingreso_anual,
         (SELECT COALESCE(SUM(monto),0) FROM cobros WHERE YEAR(fecha) = ? AND estado = 'pendiente') as pendiente_anual,
         (SELECT COALESCE(SUM(monto),0) FROM gastos_caja_chica WHERE YEAR(fecha) = ? AND estado IN ('aprobado','pagado')) as gasto_anual,
-        (SELECT COALESCE(SUM(monto),0) FROM presupuestos WHERE YEAR(fecha) = ?) as presupuesto_anual,
+        (SELECT COALESCE(SUM(monto),0)*12 FROM presupuestos WHERE YEAR(fecha) = ? AND (estado IS NULL OR estado = 'activo')) as presupuesto_anual,
         (SELECT COUNT(*) FROM cobros WHERE YEAR(fecha) = ?) as num_cobros_anual,
         (SELECT COUNT(*) FROM sesiones WHERE YEAR(fecha_programada) = ? AND estado = 'completada') as sesiones_anual,
         (SELECT COUNT(*) FROM pacientes) as total_pacientes,
@@ -91,13 +91,15 @@ export async function GET(req: NextRequest) {
 
     const r = (resumen as any)[0];
 
+    const presupuestosActivos = (presupuestosRaw as any[]).filter((p: any) => (p.estado ?? 'activo') === 'activo');
+    const presupuestoMensual = presupuestosActivos.reduce((s: number, p: any) => s + Number(p.monto || 0), 0);
+
     const porMes = MESES.map((nombre, i) => {
       const mes = i + 1;
       const ing = (ingresosRaw as any[]).find(x => Number(x.mes) === mes);
       const gas = (gastosRaw as any[]).find(x => Number(x.mes) === mes);
       const ent = (entregasRaw as any[]).find(x => Number(x.mes) === mes);
-      const pres = (presupuestosRaw as any[]).filter(x => x.fecha && Number(new Date(x.fecha + 'T00:00:00').getMonth()) + 1 === mes)
-        .reduce((s, x) => s + Number(x.monto || 0), 0);
+      const pres = presupuestoMensual;
       return {
         mes,
         nombre,
@@ -119,7 +121,7 @@ export async function GET(req: NextRequest) {
     });
 
     const beneficio = Number(r.ingreso_anual) - Number(r.gasto_anual);
-    const totalPresupuesto = Number(r.presupuesto_anual);
+    const totalPresupuesto = presupuestoMensual * 12;
 
     const calculoImpuestosPorMes = porMes.map(m => calcImpuestosMes(m.ingreso, m.gasto, m.entrega));
     const calculoImpuestosAnual = calculoImpuestosPorMes.reduce((acc, m) => {

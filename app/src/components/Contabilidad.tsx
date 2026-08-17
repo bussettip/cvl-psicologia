@@ -10,6 +10,11 @@ interface Movimiento {
   tipo: string; concepto: string; monto: number;
   fecha: string; metodo_pago: string; observaciones: string;
 }
+interface Comprobante {
+  id: number; banco: string; archivo_pdf: string; nombre_original: string;
+  fecha: string | null; monto: number | null; concepto: string;
+  autor_nombre: string; autor_apellido: string;
+}
 interface Impuesto {
   id: number; concepto: string; tipo: string; monto: number;
   fecha: string; vencimiento: string | null; estado: string;
@@ -30,8 +35,10 @@ interface ImpuestosData {
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+const BANCOS_COMPROBANTES = ['Bancomer', 'Banamex', 'Santander'];
+
 export default function Contabilidad() {
-  const [tab, setTab] = useState<'bancos' | 'facturas' | 'impuestos'>('bancos');
+  const [tab, setTab] = useState<'bancos' | 'facturas' | 'impuestos' | 'comprobantes'>('bancos');
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [data, setData] = useState<ImpuestosData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,6 +47,7 @@ export default function Contabilidad() {
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [impuestos, setImpuestos] = useState<Impuesto[]>([]);
+  const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
   const [user, setUser] = useState<any>(null);
 
   const [facturas, setFacturas] = useState<any[]>([]);
@@ -54,6 +62,11 @@ export default function Contabilidad() {
   const [movForm, setMovForm] = useState({ banco_id: '', tipo: 'ingreso', concepto: '', monto: '', fecha: '', metodo_pago: 'efectivo' });
   const [showImpForm, setShowImpForm] = useState(false);
   const [impForm, setImpForm] = useState({ concepto: '', tipo: 'IVA', monto: '', fecha: '', vencimiento: '', estado: 'pendiente', observaciones: '' });
+  const [showCompForm, setShowCompForm] = useState(false);
+  const [compForm, setCompForm] = useState({ banco: 'Bancomer', fecha: '', monto: '', concepto: '' });
+  const [compFile, setCompFile] = useState<File | null>(null);
+  const [subiendoComp, setSubiendoComp] = useState(false);
+  const [compStatus, setCompStatus] = useState('');
 
   useEffect(() => {
     fetch('/api/me').then(r => r.json()).then(d => { if (d.user) setUser(d.user); }).catch(() => {});
@@ -69,6 +82,72 @@ export default function Contabilidad() {
     fetch('/api/finanzas/impuestos').then(r => r.json()).then(d => {
       if (!d.error) setImpuestos(d.impuestos || []);
     }).catch(() => {});
+  };
+
+  const loadComprobantes = () => {
+    fetch('/api/finanzas/comprobantes').then(r => r.json()).then(d => {
+      if (!d.error) setComprobantes(d.comprobantes || []);
+    }).catch(() => {});
+  };
+
+  const exportBancosExcel = async () => {
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+
+    const cuentasRows = bancos.map(b => ({
+      'Cuenta': b.nombre,
+      'Banco': b.banco || '',
+      'No. Cuenta': b.numero_cuenta || '',
+      'Tipo': b.tipo,
+      'Saldo Inicial': Number(b.saldo_inicial || 0),
+      'Saldo': Number(b.saldo || 0),
+      'Movimientos': b.num_movimientos,
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cuentasRows), 'Cuentas Bancarias');
+
+    const movRows = movimientos.map(m => ({
+      'Fecha': m.fecha,
+      'Cuenta': m.banco_nombre,
+      'Concepto': m.concepto || '',
+      'Tipo': m.tipo,
+      'Monto': m.tipo === 'ingreso' ? Number(m.monto) : -Number(m.monto),
+      'Método de Pago': m.metodo_pago || '',
+      'Observaciones': m.observaciones || '',
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movRows), 'Movimientos');
+
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bancos_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportComprobantesExcel = async () => {
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+
+    const rows = comprobantes.map(c => ({
+      'Banco': c.banco,
+      'Fecha': c.fecha || '',
+      'Concepto': c.concepto || '',
+      'Monto': c.monto != null ? Number(c.monto) : '',
+      'Archivo': c.nombre_original || c.archivo_pdf,
+      'Registrado por': [c.autor_nombre, c.autor_apellido].filter(Boolean).join(' '),
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Comprobantes');
+
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `comprobantes_bancarios_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const loadFacturas = () => {
@@ -89,6 +168,7 @@ export default function Contabilidad() {
       .finally(() => setLoading(false));
     loadBancos();
     loadImpuestos();
+    loadComprobantes();
   }, [anio]);
 
   useEffect(() => {
@@ -122,6 +202,10 @@ export default function Contabilidad() {
           className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'impuestos' ? 'bg-amber-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
           📜 Impuestos
         </button>
+        <button onClick={() => setTab('comprobantes')}
+          className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'comprobantes' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+          📎 Comprobantes Bancarios
+        </button>
       </div>
 
       {tab === 'bancos' && (
@@ -153,6 +237,10 @@ export default function Contabilidad() {
             <button onClick={() => setShowMovForm(true)}
               className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">
               + Nuevo Movimiento
+            </button>
+            <button onClick={exportBancosExcel}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium">
+              📥 Exportar a Excel
             </button>
           </div>
 
@@ -543,6 +631,87 @@ export default function Contabilidad() {
         </div>
       )}
 
+      {tab === 'comprobantes' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl shadow p-4 border-l-4 border-indigo-500">
+              <p className="text-sm font-medium text-gray-500">Comprobantes</p>
+              <p className="text-2xl font-bold text-gray-800">{comprobantes.length}</p>
+            </div>
+            {BANCOS_COMPROBANTES.map(banco => (
+              <div key={banco} className="bg-white rounded-xl shadow p-4 border-l-4 border-gray-400">
+                <p className="text-sm font-medium text-gray-500">{banco}</p>
+                <p className="text-2xl font-bold text-gray-800">{comprobantes.filter(c => c.banco === banco).length}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-2 items-center">
+            <button onClick={() => setShowCompForm(true)}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">
+              + Subir Comprobante (PDF)
+            </button>
+            <button onClick={exportComprobantesExcel}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium">
+              📥 Exportar a Excel
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl shadow overflow-hidden">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <h3 className="font-bold text-sm text-gray-800">Comprobantes Bancarios</h3>
+              <span className="text-[10px] text-gray-400">Bancomer, Banamex y Santander</span>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="text-left px-4 py-3 font-medium">Banco</th>
+                  <th className="text-left px-4 py-3 font-medium">Fecha</th>
+                  <th className="text-left px-4 py-3 font-medium">Concepto</th>
+                  <th className="text-right px-4 py-3 font-medium">Monto</th>
+                  <th className="text-left px-4 py-3 font-medium">Archivo</th>
+                  <th className="text-center px-4 py-3 font-medium">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {comprobantes.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400 text-xs italic">Sin comprobantes registrados. Sube los PDF de tus estados de cuenta.</td></tr>
+                ) : comprobantes.map(c => (
+                  <tr key={c.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2.5">
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${c.banco === 'Bancomer' ? 'bg-yellow-100 text-yellow-800' : c.banco === 'Banamex' ? 'bg-red-100 text-red-800' : c.banco === 'Santander' ? 'bg-red-200 text-red-900' : 'bg-gray-100 text-gray-700'}`}>
+                        {c.banco}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-500">{c.fecha || '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-600">{c.concepto || '—'}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-gray-800">
+                      {c.monto != null ? `$${Number(c.monto).toLocaleString('es-MX')}` : '—'}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {c.archivo_pdf ? (
+                        <a href={c.archivo_pdf} target="_blank" rel="noopener noreferrer"
+                          className="text-indigo-600 hover:underline">📄 {c.nombre_original || 'Ver PDF'}</a>
+                      ) : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <button onClick={async () => {
+                        if (!confirm('¿Eliminar este comprobante y su PDF?')) return;
+                        await fetch(`/api/finanzas/comprobantes?id=${c.id}`, { method: 'DELETE' });
+                        loadComprobantes();
+                      }}
+                        className="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-[10px] font-medium">
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {showBancoForm && (
         <Modal title="Nueva Cuenta Bancaria" onClose={() => setShowBancoForm(false)}>
           <form onSubmit={async e => {
@@ -672,6 +841,86 @@ export default function Contabilidad() {
                 Guardar Movimiento
               </button>
               <button type="button" onClick={() => setShowMovForm(false)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium">
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {showCompForm && (
+        <Modal title="Subir Comprobante Bancario" onClose={() => setShowCompForm(false)}>
+          <form onSubmit={async e => {
+            e.preventDefault();
+            if (!compFile) { alert('Selecciona un archivo PDF'); return; }
+            setSubiendoComp(true);
+            setCompStatus('');
+            try {
+              const fd = new FormData();
+              fd.append('banco', compForm.banco);
+              fd.append('fecha', compForm.fecha || new Date().toISOString().slice(0, 10));
+              fd.append('monto', compForm.monto);
+              fd.append('concepto', compForm.concepto);
+              if (user?.id) fd.append('created_by', String(user.id));
+              fd.append('file', compFile);
+              const res = await fetch('/api/finanzas/comprobantes', { method: 'POST', body: fd });
+              const d = await res.json();
+              if (d.error) { setCompStatus(`❌ ${d.error}`); }
+              else {
+                setCompStatus('✅ Comprobante guardado');
+                setShowCompForm(false);
+                setCompForm({ banco: 'Bancomer', fecha: '', monto: '', concepto: '' });
+                setCompFile(null);
+                loadComprobantes();
+              }
+            } catch {
+              setCompStatus('❌ Error de conexión al subir');
+            } finally {
+              setSubiendoComp(false);
+            }
+          }} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Banco *</label>
+              <select required value={compForm.banco} onChange={e => setCompForm({ ...compForm, banco: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                {BANCOS_COMPROBANTES.map(b => <option key={b} value={b}>{b}</option>)}
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Fecha</label>
+                <input type="date" value={compForm.fecha}
+                  onChange={e => setCompForm({ ...compForm, fecha: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Monto (MXN)</label>
+                <input type="number" min="0" step="0.01" value={compForm.monto}
+                  onChange={e => setCompForm({ ...compForm, monto: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Concepto</label>
+              <input value={compForm.concepto} onChange={e => setCompForm({ ...compForm, concepto: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Ej. Estado de cuenta agosto 2026" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Archivo PDF *</label>
+              <input required type="file" accept=".pdf" onChange={e => setCompFile(e.target.files?.[0] || null)}
+                className="w-full border rounded-lg px-3 py-2 text-sm file:mr-2 file:px-2 file:py-1 file:rounded file:border-0 file:bg-indigo-600 file:text-white file:text-xs" />
+              <p className="text-[10px] text-gray-400 mt-1">Solo PDF (estados de cuenta de Bancomer, Banamex o Santander).</p>
+            </div>
+            {compStatus && <p className="text-xs text-gray-600">{compStatus}</p>}
+            <div className="flex gap-2 pt-2">
+              <button type="submit" disabled={subiendoComp}
+                className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                {subiendoComp ? 'Subiendo...' : 'Guardar Comprobante'}
+              </button>
+              <button type="button" onClick={() => setShowCompForm(false)}
                 className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium">
                 Cancelar
               </button>

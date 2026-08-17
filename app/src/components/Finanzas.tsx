@@ -105,7 +105,7 @@ export default function Finanzas() {
       {tab === 'presupuesto' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {KPI('Presupuesto Anual', `$${r.presupuesto_anual.toLocaleString('es-MX')}`, '#10b981', `${data.anio}`)}
+            {KPI('Presupuesto Anual', `$${r.presupuesto_anual.toLocaleString('es-MX')}`, '#10b981', `${data.anio} • mensual × 12`)}
             {KPI('Ingresos Reales', `$${r.ingreso_anual.toLocaleString('es-MX')}`, '#3b82f6', `${r.num_cobros_anual} cobros`)}
             {KPI('Gastos', `$${r.gasto_anual.toLocaleString('es-MX')}`, '#ef4444', 'gastos aprobados/pagados')}
             {KPI('Beneficio Neto', `$${r.beneficio_anual.toLocaleString('es-MX')}`, r.beneficio_anual >= 0 ? '#059669' : '#dc2626', `${r.margen.toFixed(1)}% del presupuesto`)}
@@ -165,7 +165,7 @@ export default function Finanzas() {
 
           <div className="bg-white rounded-xl shadow p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-sm text-gray-800">Partidas Presupuestales ({data.presupuestos.length})</h3>
+              <h3 className="font-bold text-sm text-gray-800">Partidas Presupuestales (mensuales) ({data.presupuestos.length})</h3>
               <button onClick={() => setShowPresForm(true)}
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium">
                 + Nueva Partida

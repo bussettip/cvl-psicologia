@@ -8,7 +8,8 @@ interface Taller {
   id: number; titulo: string; descripcion: string; tema: string; fecha: string;
   hora_inicio: string; hora_fin: string; lugar: string; instructor: string;
   capacidad: number; inscritos: number; estado: string; publico_objetivo: string;
-  materiales: string; resultado: string; autor_nombre: string; autor_apellido: string;
+  materiales: string; resultado: string; diploma_template: string | null;
+  autor_nombre: string; autor_apellido: string;
   created_at: string;
 }
 
@@ -26,6 +27,12 @@ export default function TalleresPage() {
     titulo: '', descripcion: '', tema: '', fecha: '', hora_inicio: '', hora_fin: '',
     lugar: '', instructor: '', capacidad: '', publico_objetivo: '', materiales: ''
   });
+  const [uploadingParticipants, setUploadingParticipants] = useState<number | null>(null);
+  const [uploadingTemplate, setUploadingTemplate] = useState<number | null>(null);
+  const [msg, setMsg] = useState('');
+  const [participantes, setParticipantes] = useState<any[]>([]);
+  const [loadingPart, setLoadingPart] = useState(false);
+  const [generandoDiplomas, setGenerandoDiplomas] = useState<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -63,10 +70,41 @@ export default function TalleresPage() {
     if (expandedTaller === tallerId) {
       setExpandedTaller(null);
       setInvitaciones([]);
+      setParticipantes([]);
     } else {
       setExpandedTaller(tallerId);
       fetchInvitaciones(tallerId);
+      fetchParticipantes(tallerId);
     }
+  };
+
+  const fetchParticipantes = async (tallerId: number) => {
+    setLoadingPart(true);
+    try {
+      const res = await fetch(`/api/talleres/participantes?taller_id=${tallerId}`);
+      const data = await res.json();
+      setParticipantes(Array.isArray(data) ? data : []);
+    } catch { setParticipantes([]); }
+    finally { setLoadingPart(false); }
+  };
+
+  const handleGenerarDiplomas = async (tallerId: number) => {
+    setGenerandoDiplomas(tallerId);
+    setMsg('');
+    try {
+      const res = await fetch('/api/talleres/diplomas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taller_id: tallerId }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setMsg(`${data.generated} diplomas generados correctamente`);
+      } else {
+        setMsg(data.error || 'Error al generar');
+      }
+    } catch { setMsg('Error al generar diplomas'); }
+    finally { setGenerandoDiplomas(null); }
   };
 
   const handleSave = async () => {
@@ -87,6 +125,50 @@ export default function TalleresPage() {
     if (!confirm('¿Eliminar este taller?')) return;
     await fetch(`/api/admin/talleres?id=${id}`, { method: 'DELETE' });
     fetchData();
+  };
+
+  const handleUploadParticipants = async (tallerId: number, file: File) => {
+    setUploadingParticipants(tallerId);
+    setMsg('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('taller_id', String(tallerId));
+      const res = await fetch('/api/talleres/participantes/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.ok) {
+        setMsg(`${data.imported} participantes importados al taller`);
+        fetchData();
+      } else {
+        setMsg(data.error || 'Error al importar');
+      }
+    } catch {
+      setMsg('Error al subir archivo');
+    } finally {
+      setUploadingParticipants(null);
+    }
+  };
+
+  const handleUploadTemplate = async (tallerId: number, file: File) => {
+    setUploadingTemplate(tallerId);
+    setMsg('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('taller_id', String(tallerId));
+      const res = await fetch('/api/talleres/diploma-template', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.ok) {
+        setMsg('Plantilla de diploma subida correctamente');
+        fetchData();
+      } else {
+        setMsg(data.error || 'Error al subir');
+      }
+    } catch {
+      setMsg('Error al subir plantilla');
+    } finally {
+      setUploadingTemplate(null);
+    }
   };
 
   const estadoColors: Record<string, string> = {
@@ -116,6 +198,13 @@ export default function TalleresPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-4">
+        {/* Mensaje */}
+        {msg && (
+          <div className={`p-3 rounded-lg text-sm mb-4 ${msg.includes('Error') ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+            {msg}
+          </div>
+        )}
+
         {/* Formulario */}
         {showForm && (
           <div className="bg-white p-4 rounded-xl shadow border border-indigo-200 mb-6">
@@ -221,43 +310,116 @@ export default function TalleresPage() {
               <div className="flex gap-2 mt-3">
                 <button onClick={() => toggleExpandTaller(item.id)}
                   className={`px-3 py-1 rounded text-xs font-medium ${expandedTaller === item.id ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}`}>
-                  {expandedTaller === item.id ? 'Cerrar' : `👁️ Ver Invitados (${item.inscritos || 0})`}
+                  {expandedTaller === item.id ? 'Cerrar' : `👁️ Ver Detalles`}
                 </button>
+                {/* Botón Subir Participantes */}
+                <label className={`px-3 py-1 rounded text-xs font-medium cursor-pointer ${uploadingParticipants === item.id ? 'bg-yellow-200 text-yellow-800' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
+                  {uploadingParticipants === item.id ? '⏳ Subiendo...' : '📁 Subir Participantes'}
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadParticipants(item.id, file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                {/* Botón Subir Diploma */}
+                <label className={`px-3 py-1 rounded text-xs font-medium cursor-pointer ${uploadingTemplate === item.id ? 'bg-yellow-200 text-yellow-800' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
+                  {uploadingTemplate === item.id ? '⏳ Subiendo...' : item.diploma_template ? '✅ Diplomas' : '🎨 Subir Diploma'}
+                  <input
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.pdf"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadTemplate(item.id, file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
                 {user && (user.rol === 'supervisora' || user.rol === 'lider') && (
                   <button onClick={() => handleDelete(item.id)}
                     className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">Eliminar</button>
                 )}
               </div>
 
-              {/* Lista de invitados */}
+              {/* Sección expandida */}
               {expandedTaller === item.id && (
-                <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                  <h4 className="font-bold text-xs text-indigo-800 mb-2">Invitados al taller</h4>
-                  {loadingInv ? (
-                    <p className="text-xs text-gray-500">Cargando...</p>
-                  ) : invitaciones.length === 0 ? (
-                    <p className="text-xs text-gray-500 italic">Sin invitaciones registradas</p>
-                  ) : (
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {invitaciones.map((inv: any) => (
-                        <div key={inv.id} className="flex items-center justify-between p-2 bg-white rounded border text-xs">
-                          <div>
-                            <span className="font-medium">{inv.paciente_nombre} {inv.paciente_apellido}</span>
-                            <span className="text-gray-400 ml-2">— por {inv.psicologa_nombre} {inv.psicologa_apellido}</span>
-                            {inv.fecha_sesion && <span className="text-gray-400 ml-2">📅 {new Date(inv.fecha_sesion).toLocaleDateString('es-MX')}</span>}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                              inv.estado === 'confirmada' ? 'bg-green-100 text-green-700' :
-                              inv.estado === 'asistio' ? 'bg-blue-100 text-blue-700' :
-                              inv.estado === 'cancelada' ? 'bg-red-100 text-red-700' :
-                              'bg-yellow-100 text-yellow-700'
-                            }`}>{inv.estado}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-4">
+                  {/* Plantilla de diploma */}
+                  <div>
+                    <h4 className="font-bold text-xs text-gray-800 mb-2">Plantilla de Diploma</h4>
+                    {item.diploma_template ? (
+                      <div className="flex items-center gap-3">
+                        <a href={item.diploma_template} target="_blank" rel="noopener noreferrer"
+                          className="px-3 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200 font-medium">
+                          📄 Ver Plantilla
+                        </a>
+                        <label className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200 font-medium cursor-pointer">
+                          🔄 Cambiar Plantilla
+                          <input type="file" accept=".png,.jpg,.jpeg,.pdf" className="hidden"
+                            onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadTemplate(item.id, f); e.target.value = ''; }} />
+                        </label>
+                      </div>
+                    ) : (
+                      <label className="px-3 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200 font-medium cursor-pointer">
+                        {uploadingTemplate === item.id ? '⏳ Subiendo...' : '🎨 Subir Plantilla de Diploma'}
+                        <input type="file" accept=".png,.jpg,.jpeg,.pdf" className="hidden"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadTemplate(item.id, f); e.target.value = ''; }} />
+                      </label>
+                    )}
+                  </div>
+
+                  {/* Participantes subidos */}
+                  <div>
+                    <h4 className="font-bold text-xs text-gray-800 mb-2">Participantes ({participantes.length})</h4>
+                    {loadingPart ? (
+                      <p className="text-xs text-gray-500">Cargando...</p>
+                    ) : participantes.length === 0 ? (
+                      <p className="text-xs text-gray-500 italic">Sin participantes registrados. Sube un Excel con los datos.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-xs">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="px-2 py-1 text-left font-medium text-gray-600">#</th>
+                              <th className="px-2 py-1 text-left font-medium text-gray-600">Adolescente</th>
+                              <th className="px-2 py-1 text-left font-medium text-gray-600">Padre/Madre</th>
+                              <th className="px-2 py-1 text-left font-medium text-gray-600">Pago</th>
+                              <th className="px-2 py-1 text-left font-medium text-gray-600">Contacto</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {participantes.map((p: any, i: number) => (
+                              <tr key={p.id} className="hover:bg-gray-100">
+                                <td className="px-2 py-1 text-gray-500">{i + 1}</td>
+                                <td className="px-2 py-1 font-medium text-gray-900">{p.nombre_adolescente}</td>
+                                <td className="px-2 py-1 text-gray-700">{p.nombre_padre || '-'}</td>
+                                <td className="px-2 py-1 text-gray-700">${p.cantidad_pagada}</td>
+                                <td className="px-2 py-1 text-gray-500">{p.whatsapp || p.correo || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Botones de acción */}
+                  <div className="flex gap-2 pt-2 border-t border-gray-200">
+                    <button onClick={() => handleGenerarDiplomas(item.id)}
+                      disabled={generandoDiplomas === item.id || participantes.length === 0}
+                      className={`px-4 py-2 rounded-lg text-xs font-medium text-white ${generandoDiplomas === item.id ? 'bg-yellow-500' : 'bg-emerald-600 hover:bg-emerald-700'} disabled:opacity-50`}>
+                      {generandoDiplomas === item.id ? '⏳ Generando...' : `🎓 Generar Diplomas (${participantes.length})`}
+                    </button>
+                    <Link href={`/diplomas?taller=${item.id}`}
+                      className="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700">
+                      🖨️ Ver e Imprimir Diplomas
+                    </Link>
+                  </div>
                 </div>
               )}
             </div>
