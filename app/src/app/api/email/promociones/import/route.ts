@@ -70,7 +70,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (rows.length === 0) {
-      return NextResponse.json({ error: 'No se encontraron contactos válidos en el archivo' }, { status: 400 });
+      const workbook2 = XLSX.read(buffer, { type: 'buffer' });
+      const sheet2 = workbook2.Sheets[workbook2.SheetNames[0]];
+      const debugData = XLSX.utils.sheet_to_json(sheet2);
+      const debugHeaders = debugData.length > 0 ? Object.keys(debugData[0] as object) : [];
+      const debugRow = debugData.length > 0 ? debugData[0] : null;
+      return NextResponse.json({ error: 'No se encontraron contactos válidos en el archivo', debug: { headers: debugHeaders, firstRow: debugRow, rowCount: debugData.length, sheets: workbook2.SheetNames } }, { status: 400 });
     }
 
     let insertados = 0;
