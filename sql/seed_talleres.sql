@@ -1,0 +1,26 @@
+USE cvl_psicologia;
+
+-- Agregar columna diploma_template si no existe
+SET @col = (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='cvl_psicologia' AND table_name='talleres' AND column_name='diploma_template');
+SET @sql = IF(@col = 0, 'ALTER TABLE talleres ADD COLUMN diploma_template VARCHAR(500) AFTER resultado', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Seed: Talleres desde inteligenciaemocional.mx (2026)
+INSERT INTO talleres (titulo, descripcion, tema, fecha, hora_inicio, hora_fin, lugar, instructor, capacidad, estado, publico_objetivo) VALUES
+('Aprendiendo a volar', 'Taller de inteligencia emocional y autoestima para adolescentes de 13 a 17 años. Nivel introductorio.', 'Inteligencia Emocional y Autoestima', '2026-08-23', '10:00:00', '18:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 30, 'activo', 'Adolescentes de 13 a 17 años'),
+('Inteligencia Emocional para Niños', 'Taller de inteligencia emocional dirigido a niños, aprendiendo a identificar y manejar sus emociones.', 'Inteligencia Emocional', '2026-09-06', '10:00:00', '14:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 20, 'activo', 'Niños de 6 a 12 años'),
+('Inteligencia Emocional para Adolescentes', 'Taller de inteligencia emocional para adolescentes, desarrollando habilidades socioemocionales.', 'Inteligencia Emocional', '2026-09-13', '10:00:00', '18:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 30, 'activo', 'Adolescentes de 13 a 17 años'),
+('Inteligencia Emocional para Adultos', 'Taller de inteligencia emocional para adultos que desean mejorar su bienestar y relaciones.', 'Inteligencia Emocional', '2026-09-20', '10:00:00', '18:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 30, 'activo', 'Adultos'),
+('Taller de PsicoNutrición', 'Taller que integra la psicología con la nutrición para una alimentación consciente.', 'PsicoNutrición', '2026-10-04', '10:00:00', '14:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 25, 'activo', 'Adultos'),
+('Tres caminos hacia el perdón', 'Taller terapéutico para aprender a perdonar y liberar resentimientos.', 'Perdón', '2026-10-11', '10:00:00', '18:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 30, 'activo', 'Adultos'),
+('Taller de Inteligencia Espiritual', 'Retiro de inteligencia espiritual para conectar con uno mismo.', 'Inteligencia Espiritual', '2026-10-25', '08:00:00', '18:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 20, 'activo', 'Adultos'),
+('Del miedo al amor', 'Taller para superar el miedo y abrir el corazón al amor.', 'Autoestima y Amor', '2026-11-01', '10:00:00', '18:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 30, 'activo', 'Adultos'),
+('Taller de Duelo y Tanatología', 'Taller para procesar la pérdida de un ser querido.', 'Duelo', '2026-11-08', '10:00:00', '18:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 25, 'activo', 'Adultos'),
+('Taller de Duelo por una Mascota', 'Taller especializado para procesar la pérdida de una mascota.', 'Duelo', '2026-11-15', '10:00:00', '14:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 20, 'activo', 'Adultos'),
+('Inteligencia Emocional aplicada a la Pareja', 'Taller para mejorar la relación de pareja a través de la inteligencia emocional.', 'Pareja', '2026-11-22', '10:00:00', '18:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 20, 'activo', 'Parejas'),
+('Para Varones', 'Taller exclusivo para hombres enfocado en inteligencia emocional y liderazgo.', 'Inteligencia Emocional', '2026-12-06', '10:00:00', '18:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 30, 'activo', 'Hombres'),
+('Taller de Autoestima Femenina', 'Taller para mujeres que desean fortalecer su autoestima y amor propio.', 'Autoestima', '2026-12-13', '10:00:00', '18:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 30, 'activo', 'Mujeres'),
+('Codependencia (Taller GRATIS)', 'Taller gratuito para entender y superar la codependencia.', 'Codependencia', '2026-12-20', '10:00:00', '14:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 40, 'activo', 'Adultos'),
+('Divorcio Emocional', 'Proceso completo para sanar emocionalmente de un divorcio.', 'Divorcio Emocional', '2026-09-01', '18:00:00', '20:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 15, 'activo', 'Adultos en proceso de divorcio'),
+('Las Mujeres que se Aman Demasiado', 'Proceso completo para mujeres que priorizan a otros sobre sí mismas.', 'Autoestima Femenina', '2026-09-08', '18:00:00', '20:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 15, 'activo', 'Mujeres'),
+('Aprender a Estar conmigo', 'Proceso completo para desarrollar la capacidad de estar en soledad constructiva.', 'Autoconocimiento', '2026-09-15', '18:00:00', '20:00:00', 'Centro VivirLibre.org campus CDMX', 'Gabriela Torres de Moroso Bussetti', 15, 'activo', 'Adultos');
