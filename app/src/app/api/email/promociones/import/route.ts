@@ -33,14 +33,38 @@ export async function POST(req: NextRequest) {
       const workbook = XLSX.read(buffer, { type: 'buffer' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(sheet);
-      for (const row of data) {
-        const r = row as Record<string, any>;
-        const email = r.email || r.correo || r.Email || r.Correo || '';
-        const nombre = r.nombre || r.Nombre || r.firstname || r.first_name || '';
-        const apellido = r.apellido || r.Apellido || r.lastname || r.last_name || '';
-        const telefono = r.telefono || r.Telefono || r.phone || r.Phone || '';
-        if (email && email.includes('@')) {
-          rows.push({ email, nombre, apellido, telefono });
+      if (data.length > 0) {
+        const headers = Object.keys(data[0] as object);
+        const findCol = (keywords: string[]) => {
+          for (const h of headers) {
+            const hl = h.toLowerCase();
+            if (keywords.some(k => hl.includes(k))) return h;
+          }
+          return null;
+        };
+        const emailCol = findCol(['correo', 'email', 'e-mail']);
+        const nombreCol = findCol(['nombre completo del adolescente', 'nombre completo', 'nombre del paciente']);
+        const tutorCol = findCol(['nombre completo de pap', 'tutor', 'padre', 'madre', 'representante']);
+        const telCol = findCol(['whatsapp', 'whats', 'mensaje', 'telefono', 'teléfono', 'celular', 'phone']);
+        const email2Col = findCol(['correo electrónico:']);
+        for (const row of data) {
+          const r = row as Record<string, any>;
+          const email = (emailCol ? r[emailCol] : '') || (email2Col ? r[email2Col] : '') || '';
+          const nombreCompleto = (nombreCol ? r[nombreCol] : '') || '';
+          const tutor = (tutorCol ? r[tutorCol] : '') || '';
+          const telefono = (telCol ? r[telCol] : '') || '';
+          let nombre = '';
+          let apellido = '';
+          const nombreUsar = nombreCompleto || tutor || '';
+          if (nombreUsar) {
+            const parts = nombreUsar.trim().split(/\s+/);
+            nombre = parts[0] || '';
+            apellido = parts.slice(1).join(' ') || '';
+          }
+          const emailStr = String(email || '').trim();
+          if (emailStr.includes('@')) {
+            rows.push({ email: emailStr, nombre, apellido, telefono: String(telefono || '').trim() });
+          }
         }
       }
     }
@@ -65,8 +89,8 @@ export async function POST(req: NextRequest) {
           continue;
         }
         await pool.query(
-          'INSERT INTO pacientes (nombre, apellido, email, telefono, estado) VALUES (?, ?, ?, ?, ?)',
-          [row.nombre || 'Sin nombre', row.apellido || '', row.email, row.telefono || null, 'activo']
+          'INSERT INTO pacientes (nombre, apellido, email, telefono, whatsapp, estado) VALUES (?, ?, ?, ?, ?, ?)',
+          [row.nombre || 'Sin nombre', row.apellido || '', row.email, row.telefono || null, row.telefono || null, 'activo']
         );
         insertados++;
       } catch (err: any) {
