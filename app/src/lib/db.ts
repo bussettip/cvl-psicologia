@@ -20,7 +20,7 @@ async function runMigrations() {
   try {
     const conn = await pool.getConnection();
 
-    const hash = '$2b$10$JPb3Q3IXqL0hjve1Ux23zOiPTwwudWYh3O9QX6rQBEGkBOpNjMYJ2';
+    const hash = '$2b$10$QZu0CKM060Sk.iZP1hiVOex/wgPC1PbPt5i.u0lrwmSpjlufe67jy';
 
     const users = [
       { email: 'admin@vivirlibre.org', nombre: 'Gabriela', apellido: 'Torres', rol: 'admin' },
@@ -40,7 +40,7 @@ async function runMigrations() {
       }
     }
 
-    await conn.query('UPDATE usuarios SET password_hash = ?', [hash]);
+    // Passwords are set by seed.sql — don't overwrite them
     conn.release();
     console.log('Migracion de passwords completada');
   } catch (e: any) {

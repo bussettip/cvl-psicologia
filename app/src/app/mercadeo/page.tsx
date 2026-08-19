@@ -41,6 +41,13 @@ export default function MercadeoPage() {
   const [historialRecordatorios, setHistorialRecordatorios] = useState<any[]>([]);
   const [loadingRecordatorios, setLoadingRecordatorios] = useState(false);
   const [enviandoRecordatorios, setEnviandoRecordatorios] = useState(false);
+  const [showPromociones, setShowPromociones] = useState(false);
+  const [promoForm, setPromoForm] = useState({ asunto: '', contenido: '', usar_bd: true, taller_url: '', taller_nombre: '', lista_emails: '' });
+  const [enviandoPromo, setEnviandoPromo] = useState(false);
+  const [resultadoPromo, setResultadoPromo] = useState<any>(null);
+  const [importandoContactos, setImportandoContactos] = useState(false);
+  const [resultadoImport, setResultadoImport] = useState<any>(null);
+  const [showImportarContactos, setShowImportarContactos] = useState(false);
 
   const PLAN_TASKS = [
     { id: 'm1t1', month: 1, text: 'Definir temas de los 5 talleres terapéuticos y fechas tentativas' },
@@ -150,6 +157,55 @@ export default function MercadeoPage() {
       fetchRecordatorios();
     } catch (e: any) { alert('Error: ' + e.message); }
     setEnviandoRecordatorios(false);
+  };
+
+  const enviarPromocion = async () => {
+    if (!promoForm.asunto || !promoForm.contenido) { alert('Asunto y contenido son obligatorios'); return; }
+    if (!promoForm.usar_bd && !promoForm.lista_emails.trim()) { alert('Ingresa al menos un correo en la lista'); return; }
+    setEnviandoPromo(true);
+    setResultadoPromo(null);
+    try {
+      let destinatarios: { email: string; nombre: string }[] = [];
+      if (!promoForm.usar_bd) {
+        destinatarios = promoForm.lista_emails.split('\n').map(line => {
+          const parts = line.split(',').map(s => s.trim());
+          return { email: parts[0] || '', nombre: parts[1] || '' };
+        }).filter(d => d.email && d.email.includes('@'));
+      }
+      const res = await fetch('/api/email/promociones', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asunto: promoForm.asunto,
+          contenido: promoForm.contenido,
+          usar_bd: promoForm.usar_bd,
+          destinatarios,
+          taller_url: promoForm.taller_url || undefined,
+          taller_nombre: promoForm.taller_nombre || undefined,
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setResultadoPromo(data);
+      alert(`Enviados: ${data.enviados}, Errores: ${data.errores}, Total: ${data.total}`);
+    } catch (e: any) { alert('Error: ' + e.message); }
+    setEnviandoPromo(false);
+  };
+
+  const importarContactos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportandoContactos(true);
+    setResultadoImport(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/email/promociones/import', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setResultadoImport(data);
+    } catch (err: any) { alert('Error: ' + err.message); }
+    setImportandoContactos(false);
+    e.target.value = '';
   };
 
   const fetchHistorialRecordatorios = async () => {
@@ -536,6 +592,133 @@ export default function MercadeoPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Correos Promocionales */}
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden mb-6">
+          <button onClick={() => setShowPromociones(!showPromociones)}
+            className="w-full px-4 py-3 flex items-center justify-between text-left">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📬</span>
+              <span className="font-bold text-sm text-gray-800">Correos Promocionales</span>
+            </div>
+            <span className="text-gray-400 text-xs">{showPromociones ? '▲ Ocultar' : '▼ Mostrar'}</span>
+          </button>
+          {showPromociones && (
+            <div className="border-t px-4 pb-4">
+              <div className="mt-3 space-y-3">
+                {/* Destinatarios */}
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <label className="text-xs font-bold text-gray-700 block mb-2">Destinatarios</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" checked={promoForm.usar_bd} onChange={() => setPromoForm({...promoForm, usar_bd: true})}
+                        className="accent-indigo-600" />
+                      <span className="text-xs text-gray-700">📋 Todos los pacientes de la BD</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" checked={!promoForm.usar_bd} onChange={() => setPromoForm({...promoForm, usar_bd: false})}
+                        className="accent-indigo-600" />
+                      <span className="text-xs text-gray-700">📝 Lista personalizada</span>
+                    </label>
+                  </div>
+                  {!promoForm.usar_bd && (
+                    <div className="mt-2">
+                      <textarea value={promoForm.lista_emails} onChange={e => setPromoForm({...promoForm, lista_emails: e.target.value})}
+                        rows={4} className="w-full px-3 py-2 border rounded-lg text-xs resize-none font-mono"
+                        placeholder={"Un email por línea, opcional nombre después de coma:\njuan@correo.com, Juan Pérez\nmaria@correo.com, María López\nana@correo.com"} />
+                      <p className="text-[10px] text-gray-400 mt-1">Formato: correo@ejemplo.com, Nombre (opcional)</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Importar contactos desde archivo */}
+                <div className="bg-green-50 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-green-700">📂 Importar contactos a la BD</label>
+                    <button onClick={() => setShowImportarContactos(!showImportarContactos)}
+                      className="text-[10px] text-green-600 hover:text-green-800 font-medium">
+                      {showImportarContactos ? '▲ Ocultar' : '▼ Mostrar'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-green-600 mb-2">Carga un archivo .txt, .csv o .xlsx para agregar contactos a la base de datos de pacientes.</p>
+                  {showImportarContactos && (
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <label className={`px-4 py-2 rounded-lg text-xs font-medium text-white cursor-pointer transition-colors ${importandoContactos ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'}`}>
+                          {importandoContactos ? '⏳ Importando...' : '📁 Seleccionar archivo (.txt, .csv, .xlsx)'}
+                          <input type="file" className="hidden" onChange={importarContactos}
+                            accept=".txt,.csv,.xlsx,.xls" disabled={importandoContactos} />
+                        </label>
+                      </div>
+                      <div className="text-[10px] text-green-600 space-y-0.5">
+                        <p><strong>Formato .txt/.csv:</strong> email, nombre, apellido, teléfono (una línea por contacto)</p>
+                        <p><strong>Formato .xlsx:</strong> Columnas: email, nombre, apellido, telefono</p>
+                        <p>Los contactos duplicados (mismo email) se omiten automáticamente.</p>
+                      </div>
+                      {resultadoImport && (
+                        <div className="mt-2 bg-white rounded-lg p-2 border border-green-200 text-xs space-y-0.5">
+                          <p className="font-bold text-green-700">Resultado de la importación:</p>
+                          <p>📊 Total filas: {resultadoImport.total_filas}</p>
+                          <p className="text-green-600">✅ Insertados: {resultadoImport.insertados}</p>
+                          <p className="text-yellow-600">⚠️ Duplicados omitidos: {resultadoImport.duplicados}</p>
+                          {resultadoImport.errores > 0 && (
+                            <p className="text-red-600">❌ Errores: {resultadoImport.errores}</p>
+                          )}
+                          {resultadoImport.errores_detalle && (
+                            <div className="text-[10px] text-red-500 mt-1">
+                              {resultadoImport.errores_detalle.slice(0, 5).map((e: string, i: number) => <p key={i}>{e}</p>)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Asunto y contenido */}
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Asunto del correo *</label>
+                  <input value={promoForm.asunto} onChange={e => setPromoForm({...promoForm, asunto: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg text-xs" placeholder="Ej: ¡50% de descuento en talleres de Inteligencia Emocional!" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Contenido del correo *</label>
+                  <textarea value={promoForm.contenido} onChange={e => setPromoForm({...promoForm, contenido: e.target.value})}
+                    rows={6} className="w-full px-3 py-2 border rounded-lg text-xs resize-none"
+                    placeholder={"Escribe el contenido del correo...\n\nPuedes usar {{nombre}} para personalizar con el nombre del paciente."} />
+                </div>
+
+                {/* Taller opcional */}
+                <div className="bg-indigo-50 rounded-lg p-3">
+                  <label className="text-xs font-bold text-indigo-700 block mb-2">Enlace a taller (opcional)</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-gray-500">Nombre del taller</label>
+                      <input value={promoForm.taller_nombre} onChange={e => setPromoForm({...promoForm, taller_nombre: e.target.value})}
+                        className="w-full px-3 py-1.5 border rounded text-xs mt-0.5" placeholder="Taller de Inteligencia Emocional" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-gray-500">URL del taller</label>
+                      <input value={promoForm.taller_url} onChange={e => setPromoForm({...promoForm, taller_url: e.target.value})}
+                        className="w-full px-3 py-1.5 border rounded text-xs mt-0.5" placeholder="https://www.inteligenciaemocional.mx/..." />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botón enviar */}
+                <div className="flex items-center gap-3">
+                  <button onClick={enviarPromocion} disabled={enviandoPromo}
+                    className={`px-6 py-2.5 rounded-lg text-sm font-medium text-white ${enviandoPromo ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+                    {enviandoPromo ? '⏳ Enviando correos...' : '📨 Enviar Correo Promocional'}
+                  </button>
+                  {resultadoPromo && (
+                    <span className="text-xs text-green-600 font-medium">✅ {resultadoPromo.enviados} enviados, {resultadoPromo.errores} errores</span>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>

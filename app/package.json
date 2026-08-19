@@ -11,11 +11,13 @@
   "dependencies": {
     "@nodecfdi/cfdi-expresiones": "^2.1.6",
     "@nodecfdi/sat-ws-descarga-masiva": "^2.0.0",
+    "@types/nodemailer": "^8.0.1",
     "bcryptjs": "^3.0.3",
     "cfdi-sat-nodejs": "^3.1.0",
     "fast-xml-parser": "^5.10.1",
     "mysql2": "^3.23.1",
     "next": "16.2.12",
+    "nodemailer": "^9.0.5",
     "pdfkit": "^0.19.1",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
