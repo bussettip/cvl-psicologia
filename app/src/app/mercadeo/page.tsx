@@ -9,12 +9,6 @@ interface Mercadeo {
   fecha_inicio: string; fecha_fin: string; estado: string; contenido: string;
   resultado: string; autor_nombre: string; autor_apellido: string; created_at: string;
 }
-interface Presupuesto {
-  id: number; titulo: string; descripcion: string; fecha: string;
-  monto: number; archivo_url: string; archivo_nombre: string;
-  estado: string; autor_nombre: string; autor_apellido: string; created_at: string;
-}
-
 export default function MercadeoPage() {
   const [user, setUser] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
@@ -30,12 +24,6 @@ export default function MercadeoPage() {
   const [archivos, setArchivos] = useState<{ name: string; size: number; created: string }[]>([]);
   const [subiendo, setSubiendo] = useState(false);
   const [showArchivos, setShowArchivos] = useState(false);
-  const [showPresupuestos, setShowPresupuestos] = useState(false);
-  const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
-  const [showPresupuestoForm, setShowPresupuestoForm] = useState(false);
-  const [presupuestoForm, setPresupuestoForm] = useState({ titulo: '', descripcion: '', fecha: '', monto: '' });
-  const [presupuestoFile, setPresupuestoFile] = useState<File | null>(null);
-  const [subiendoPresupuesto, setSubiendoPresupuesto] = useState(false);
   const [showRecordatorios, setShowRecordatorios] = useState(false);
   const [recordatoriosPendientes, setRecordatoriosPendientes] = useState<any[]>([]);
   const [historialRecordatorios, setHistorialRecordatorios] = useState<any[]>([]);
@@ -88,7 +76,6 @@ export default function MercadeoPage() {
         setUser(data.user);
         fetchData();
         fetchArchivos();
-        fetchPresupuestos();
       } else {
         window.location.href = '/login';
       }
@@ -109,14 +96,6 @@ export default function MercadeoPage() {
       const res = await fetch('/api/upload/mercadeo');
       const data = await res.json();
       setArchivos(data.files || []);
-    } catch (e) { console.error(e); }
-  };
-
-  const fetchPresupuestos = async () => {
-    try {
-      const res = await fetch('/api/mercadeo/presupuestos');
-      const data = await res.json();
-      setPresupuestos(data.presupuestos || []);
     } catch (e) { console.error(e); }
   };
 
@@ -460,69 +439,6 @@ export default function MercadeoPage() {
           )}
         </div>
 
-        {/* Presupuestos */}
-        <div className="bg-white rounded-xl shadow-sm border mb-6">
-          <button onClick={() => { setShowPresupuestos(!showPresupuestos); if (!showPresupuestos) fetchPresupuestos(); }}
-            className="w-full px-4 py-3 flex items-center justify-between text-left">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">💰</span>
-              <span className="font-bold text-sm text-gray-800">Presupuestos</span>
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs">{presupuestos.length}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {showPresupuestos && (
-                <button onClick={(e) => { e.stopPropagation(); setShowPresupuestoForm(true); }}
-                  className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-medium">
-                  + Nuevo
-                </button>
-              )}
-              <span className="text-gray-400 text-xs">{showPresupuestos ? '▲ Ocultar' : '▼ Mostrar'}</span>
-            </div>
-          </button>
-          {showPresupuestos && (
-            <div className="border-t px-4 pb-4">
-              {presupuestos.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-6">No hay presupuestos registrados</p>
-              ) : (
-                <div className="mt-3 space-y-2">
-                  {presupuestos.map(p => (
-                    <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-800">{p.titulo}</span>
-                          <span className="text-xs text-gray-400">📅 {new Date(p.fecha).toLocaleDateString('es-MX')}</span>
-                          {p.monto && <span className="text-xs font-bold text-green-600">${Number(p.monto).toLocaleString('es-MX')}</span>}
-                        </div>
-                        {p.descripcion && <p className="text-xs text-gray-500 mt-0.5">{p.descripcion}</p>}
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          {p.autor_nombre} {p.autor_apellido} • {new Date(p.created_at).toLocaleDateString('es-MX')}
-                        </p>
-                        {p.archivo_url && (
-                          <a href={p.archivo_url} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 mt-1 text-blue-600 hover:text-blue-800 text-[10px] font-medium">
-                            📎 {p.archivo_nombre || 'Ver archivo'}
-                          </a>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {p.archivo_url && (
-                          <a href={p.archivo_url} target="_blank" rel="noopener noreferrer"
-                            className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">Abrir</a>
-                        )}
-                        <button onClick={async () => {
-                          if (!confirm('¿Eliminar este presupuesto?')) return;
-                          await fetch(`/api/mercadeo/presupuestos?id=${p.id}`, { method: 'DELETE' });
-                          fetchPresupuestos();
-                        }} className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">Eliminar</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Recordatorios de Correo */}
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           <button onClick={() => { setShowRecordatorios(!showRecordatorios); if (!showRecordatorios) fetchRecordatorios(); }}
@@ -798,92 +714,6 @@ export default function MercadeoPage() {
             </div>
           )}
         </div>
-
-        {/* Modal Nuevo Presupuesto */}
-        {showPresupuestoForm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-bold text-gray-800">💰 Nuevo Presupuesto</h3>
-                  <button onClick={() => { setShowPresupuestoForm(false); setPresupuestoFile(null); }}
-                    className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Título *</label>
-                    <input value={presupuestoForm.titulo} onChange={e => setPresupuestoForm({...presupuestoForm, titulo: e.target.value})}
-                      className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Ej: Campaña Google Ads Q3" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Fecha *</label>
-                      <input type="date" value={presupuestoForm.fecha} onChange={e => setPresupuestoForm({...presupuestoForm, fecha: e.target.value})}
-                        className="w-full px-3 py-2 border rounded-lg text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Monto (MXN)</label>
-                      <input type="number" step="0.01" min="0" value={presupuestoForm.monto}
-                        onChange={e => setPresupuestoForm({...presupuestoForm, monto: e.target.value})}
-                        className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="0.00" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
-                    <textarea value={presupuestoForm.descripcion} onChange={e => setPresupuestoForm({...presupuestoForm, descripcion: e.target.value})}
-                      rows={2} className="w-full px-3 py-2 border rounded-lg text-sm resize-none" placeholder="Detalles del presupuesto..." />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Archivo (PDF, Excel, Word, imagen)</label>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.xls"
-                      onChange={e => setPresupuestoFile(e.target.files?.[0] || null)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
-                    {presupuestoFile && <p className="text-xs text-green-600 mt-1">📎 {presupuestoFile.name}</p>}
-                  </div>
-                </div>
-                <div className="flex gap-3 mt-5">
-                  <button onClick={async () => {
-                    if (!presupuestoForm.titulo || !presupuestoForm.fecha) { alert('Título y fecha son obligatorios'); return; }
-                    setSubiendoPresupuesto(true);
-                    try {
-                      let archivo_url = '';
-                      let archivo_nombre = '';
-                      if (presupuestoFile) {
-                        const fd = new FormData();
-                        fd.append('file', presupuestoFile);
-                        const upRes = await fetch('/api/upload/presupuestos', { method: 'POST', body: fd });
-                        if (!upRes.ok) { const d = await upRes.json(); throw new Error(d.error); }
-                        const upData = await upRes.json();
-                        archivo_url = upData.url;
-                        archivo_nombre = upData.nombre || presupuestoFile.name;
-                      }
-                      const res = await fetch('/api/mercadeo/presupuestos', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          ...presupuestoForm, monto: presupuestoForm.monto ? Number(presupuestoForm.monto) : null,
-                          archivo_url, archivo_nombre, created_by: user?.id
-                        })
-                      });
-                      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-                      setShowPresupuestoForm(false);
-                      setPresupuestoForm({ titulo: '', descripcion: '', fecha: '', monto: '' });
-                      setPresupuestoFile(null);
-                      fetchPresupuestos();
-                    } catch (e: any) { alert('Error: ' + e.message); }
-                    finally { setSubiendoPresupuesto(false); }
-                  }} disabled={subiendoPresupuesto}
-                    className={`flex-1 py-2 text-white rounded-lg text-sm font-medium ${subiendoPresupuesto ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}>
-                    {subiendoPresupuesto ? '⏳ Guardando...' : '💰 Guardar Presupuesto'}
-                  </button>
-                  <button onClick={() => { setShowPresupuestoForm(false); setPresupuestoFile(null); }}
-                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm">
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Lista */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
