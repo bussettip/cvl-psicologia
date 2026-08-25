@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    const data = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false, dateNF: 'yyyy-mm-dd' });
 
     // Busca la primera clave cuyo texto normalizado contenga todos los fragmentos dados
     const norm = (s: string) =>
@@ -30,6 +30,19 @@ export async function POST(req: NextRequest) {
     const pick = (row: Record<string, unknown>, ...frags: string[]) => {
       const k = findKey(row, ...frags);
       return k ? String(row[k] ?? '').trim() : '';
+    };
+
+    // Convertir fechas de Excel (números seriales) a formato YYYY-MM-DD
+    const excelDateToISO = (val: any): string | null => {
+      if (!val) return null;
+      const s = String(val).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+      const n = Number(val);
+      if (n > 30000 && n < 50000) {
+        const d = new Date((n - 25569) * 86400000);
+        return d.toISOString().substring(0, 10);
+      }
+      return s || null;
     };
 
     const participantes = [];
@@ -59,9 +72,9 @@ export async function POST(req: NextRequest) {
         participantes.push({
           nombre_adolescente: String(nombreAdolescente).trim(),
           nombre_padre: nombrePadre ? String(nombrePadre).trim() : null,
-          fecha_nacimiento: fechaNac || null,
+          fecha_nacimiento: excelDateToISO(fechaNac),
           cantidad_pagada: cantidad ? Number(cantidad) : 0,
-          fecha_pago: fechaPago || null,
+          fecha_pago: excelDateToISO(fechaPago),
           correo: correo ? String(correo).trim() : null,
           whatsapp: whatsapp ? String(whatsapp).trim() : null,
           comentarios: comentarios ? String(comentarios).trim() : null,
