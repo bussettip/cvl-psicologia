@@ -32,11 +32,18 @@ export async function POST(req: NextRequest) {
       return k ? String(row[k] ?? '').trim() : '';
     };
 
-    // Convertir fechas de Excel (números seriales) a formato YYYY-MM-DD
+    // Convertir fechas de Excel a formato YYYY-MM-DD
     const excelDateToISO = (val: any): string | null => {
       if (!val) return null;
       const s = String(val).trim();
+      if (!s) return null;
       if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+      const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      if (m) {
+        let [, mm, dd, yy] = m;
+        const yyyy = yy.length === 2 ? (Number(yy) > 50 ? '19' + yy : '20' + yy) : yy;
+        return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+      }
       const n = Number(val);
       if (n > 30000 && n < 50000) {
         const d = new Date((n - 25569) * 86400000);
