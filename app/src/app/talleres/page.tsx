@@ -353,7 +353,7 @@ export default function TalleresPage() {
                   <div>
                     <h4 className="font-bold text-xs text-gray-800 mb-2">Plantilla de Diploma</h4>
                     {item.diploma_template ? (
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <a href={item.diploma_template} target="_blank" rel="noopener noreferrer"
                           className="px-3 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200 font-medium">
                           📄 Ver Plantilla
@@ -363,6 +363,10 @@ export default function TalleresPage() {
                           <input type="file" accept=".png,.jpg,.jpeg,.pdf" className="hidden"
                             onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadTemplate(item.id, f); e.target.value = ''; }} />
                         </label>
+                        <Link href={`/diplomas/editor?taller=${item.id}`}
+                          className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded text-xs hover:bg-indigo-200 font-medium">
+                          🎯 Configurar Posiciones
+                        </Link>
                       </div>
                     ) : (
                       <label className="px-3 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200 font-medium cursor-pointer">

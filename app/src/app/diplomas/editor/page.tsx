@@ -179,10 +179,10 @@ function EditorContent() {
               className="w-full px-3 py-2 bg-purple-100 text-purple-700 rounded text-xs font-medium hover:bg-purple-200">
               {template ? 'Cambiar Plantilla' : 'Subir Plantilla de Fondo'}
             </button>
-            {uploadedFile && !template && (
+            {uploadedFile && (
               <button onClick={handleUploadTemplate} disabled={saving}
                 className="w-full mt-2 px-3 py-2 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700">
-                Subir: {uploadedFile.name}
+                {saving ? 'Subiendo...' : `Subir: ${uploadedFile.name}`}
               </button>
             )}
             {template && (
