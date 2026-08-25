@@ -15,19 +15,45 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(sheet);
+    const data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    // Busca la primera clave cuyo texto normalizado contenga todos los fragmentos dados
+    const norm = (s: string) =>
+      String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+    const findKey = (row: Record<string, unknown>, ...frags: string[]) => {
+      for (const k of Object.keys(row)) {
+        const nk = norm(k);
+        if (frags.every(f => nk.includes(norm(f)))) return k;
+      }
+      return null;
+    };
+    const pick = (row: Record<string, unknown>, ...frags: string[]) => {
+      const k = findKey(row, ...frags);
+      return k ? String(row[k] ?? '').trim() : '';
+    };
 
     const participantes = [];
     for (const row of data) {
       const r = row as any;
-      const nombreAdolescente = r['Nombre completo del adolescente:'] || r['Nombre completo del adolescente'] || '';
-      const nombrePadre = r['Nombre completo de papá/mamá/tutor (abajo de la imagen por favor):'] || r['Nombre completo de papá/mamá/tutor'] || '';
-      const fechaNac = r['Fecha de nacimiento del adolescente:'] || r['Fecha de nacimiento del adolescente'] || null;
-      const cantidad = r['Cantidad pagada:'] || r['Cantidad pagada'] || 0;
-      const fechaPago = r['Fecha del pago:'] || r['Fecha del pago'] || null;
-      const correo = r['Correo electrónico:'] || r['Correo electrónico'] || '';
-      const whatsapp = r['Número para mensajes WhatsApp:'] || r['Número para mensajes WhatsApp'] || '';
-      const comentarios = r['Comentarios adicionales sobre el pago (si los hubiera):'] || r['Comentarios adicionales sobre el pago'] || '';
+      const keys = Object.keys(r);
+      // Columna del adolescente: preferir "nombre ... adolescente"; si no,
+      // cualquier columna de nombre que no sea la del tutor/papá
+      const adolKey =
+        findKey(r, 'nombre', 'adolescente') ||
+        findKey(r, 'adolescente') ||
+        keys.find(k => {
+          const nk = norm(k);
+          return nk.includes('nombre') && !nk.includes('tutor') && !nk.includes('papa');
+        }) ||
+        '';
+      const nombreAdolescente = adolKey ? String(r[adolKey] ?? '').trim() : '';
+      const nombrePadre = pick(r, 'tutor') || pick(r, 'papa') || '';
+      const fechaNac = pick(r, 'nacimiento') || null;
+      const cantidad = pick(r, 'cantidad pagada') || pick(r, 'cantidad') || 0;
+      const fechaPago = pick(r, 'fecha del pago') || null;
+      const correo = pick(r, 'correo electronico:') || pick(r, 'correo electronico') || '';
+      const whatsapp = pick(r, 'whatsapp') || '';
+      const comentarios = pick(r, 'comentarios') || '';
 
       if (nombreAdolescente && String(nombreAdolescente).trim()) {
         participantes.push({
