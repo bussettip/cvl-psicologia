@@ -32,9 +32,12 @@ services:
       DATABASE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-CVLpsicologia2026!}
       DATABASE_NAME: cvl_psicologia
       DATABASE_PORT: 3306
+    volumes:
+      - uploads_data:/app/public/uploads
     depends_on:
       cvl-db:
         condition: service_healthy
 
 volumes:
   cvl_mysql_data:
+  uploads_data:
