@@ -13,14 +13,39 @@ interface TextBlock {
   color: string;
   fontWeight: string;
   fontStyle: string;
+  fontFamily: string;
   preview: string;
 }
 
+interface CustomFont {
+  name: string;
+  file: string;
+  url: string;
+}
+
+const BUILT_IN_FONTS: CustomFont[] = [
+  { name: 'Times New Roman', file: '', url: '' },
+  { name: 'Georgia', file: '', url: '' },
+  { name: 'Garamond', file: '', url: '' },
+  { name: 'Arial', file: '', url: '' },
+  { name: 'Courier New', file: '', url: '' },
+  { name: 'Verdana', file: '', url: '' },
+  { name: 'Trebuchet MS', file: '', url: '' },
+  { name: 'Palatino', file: '', url: '' },
+  { name: 'Book Antiqua', file: '', url: '' },
+];
+
+function fontToCSS(name: string, url: string) {
+  if (!url) return name;
+  const safeName = name.replace(/[^a-zA-Z0-9]/g, '_');
+  return `'${safeName}', ${name}`;
+}
+
 const DEFAULT_CONFIG: TextBlock[] = [
-  { id: 'nombre_adolescente', label: 'Nombre Adolescente', x: 50, y: 40, fontSize: 32, color: '#222222', fontWeight: 'bold', fontStyle: 'italic', preview: 'María García López' },
-  { id: 'nombre_padre', label: 'Nombre Padre/Tutor', x: 50, y: 55, fontSize: 28, color: '#222222', fontWeight: 'bold', fontStyle: 'italic', preview: 'Juan García Ruiz' },
-  { id: 'titulo_taller', label: 'Título Taller', x: 50, y: 68, fontSize: 16, color: '#333333', fontWeight: 'bold', fontStyle: 'normal', preview: 'Aprendiendo a volar' },
-  { id: 'fecha_taller', label: 'Fecha', x: 50, y: 80, fontSize: 13, color: '#555555', fontWeight: 'normal', fontStyle: 'normal', preview: 'domingo 23 de agosto del 2026' },
+  { id: 'nombre_adolescente', label: 'Nombre Adolescente', x: 50, y: 40, fontSize: 32, color: '#222222', fontWeight: 'bold', fontStyle: 'italic', fontFamily: 'Times New Roman', preview: 'María García López' },
+  { id: 'nombre_padre', label: 'Nombre Padre/Tutor', x: 50, y: 55, fontSize: 28, color: '#222222', fontWeight: 'bold', fontStyle: 'italic', fontFamily: 'Times New Roman', preview: 'Juan García Ruiz' },
+  { id: 'titulo_taller', label: 'Título Taller', x: 50, y: 68, fontSize: 16, color: '#333333', fontWeight: 'bold', fontStyle: 'normal', fontFamily: 'Times New Roman', preview: 'Aprendiendo a volar' },
+  { id: 'fecha_taller', label: 'Fecha', x: 50, y: 80, fontSize: 13, color: '#555555', fontWeight: 'normal', fontStyle: 'normal', fontFamily: 'Times New Roman', preview: 'domingo 23 de agosto del 2026' },
 ];
 
 function EditorContent() {
@@ -41,6 +66,34 @@ function EditorContent() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fontInputRef = useRef<HTMLInputElement>(null);
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+  const [uploadingFont, setUploadingFont] = useState(false);
+  const [allFonts, setAllFonts] = useState<CustomFont[]>(BUILT_IN_FONTS);
+
+  useEffect(() => {
+    fetch('/api/fonts').then(r => r.json()).then(data => {
+      if (data.fonts) {
+        setCustomFonts(data.fonts);
+        setAllFonts([...BUILT_IN_FONTS, ...data.fonts]);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    allFonts.forEach(f => {
+      if (f.url && !document.querySelector(`link[href="${f.url}"]`)) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = f.url;
+        document.head.appendChild(link);
+        const safeName = f.name.replace(/[^a-zA-Z0-9]/g, '_');
+        const style = document.createElement('style');
+        style.textContent = `@font-face{font-family:'${safeName}';src:url('${f.url}') format('${f.url.endsWith('.woff2') ? 'woff2' : f.url.endsWith('.woff') ? 'woff' : 'truetype'}');}`;
+        document.head.appendChild(style);
+      }
+    });
+  }, [allFonts]);
 
   useEffect(() => {
     if (!tallerId) return;
@@ -48,7 +101,12 @@ function EditorContent() {
       .then(r => r.json())
       .then(data => {
         if (data.template) setTemplate(data.template);
-        if (data.config && Array.isArray(data.config)) setBlocks(data.config);
+        if (data.config && Array.isArray(data.config)) {
+          setBlocks(data.config.map((b: any) => ({
+            ...b,
+            fontFamily: b.fontFamily || 'Times New Roman',
+          })));
+        }
         fetch(`/api/admin/talleres`)
           .then(r => r.json())
           .then(d => {
@@ -137,6 +195,27 @@ function EditorContent() {
     setSaving(false);
   };
 
+  const handleUploadFont = async (file: File) => {
+    setUploadingFont(true);
+    setMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/fonts', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.ok) {
+        setCustomFonts(prev => [...prev, data.font]);
+        setAllFonts(prev => [...prev, data.font]);
+        setMsg(`Fuente "${data.font.name}" importada correctamente`);
+      } else {
+        setMsg(data.error || 'Error al importar fuente');
+      }
+    } catch {
+      setMsg('Error al importar fuente');
+    }
+    setUploadingFont(false);
+  };
+
   const updateBlock = (id: string, field: keyof TextBlock, value: any) => {
     setBlocks(prev => prev.map(b => b.id === id ? { ...b, [field]: value } : b));
   };
@@ -192,6 +271,26 @@ function EditorContent() {
 
           <hr />
 
+          {/* Importar fuentes */}
+          <div>
+            <h3 className="font-bold text-xs text-gray-800 mb-2">Fuentes</h3>
+            <input type="file" accept=".ttf,.woff,.woff2,.otf" ref={fontInputRef} className="hidden"
+              onChange={e => {
+                const f = e.target.files?.[0];
+                if (f) handleUploadFont(f);
+                e.target.value = '';
+              }} />
+            <button onClick={() => fontInputRef.current?.click()} disabled={uploadingFont}
+              className="w-full px-3 py-2 bg-amber-100 text-amber-700 rounded text-xs font-medium hover:bg-amber-200">
+              {uploadingFont ? 'Importando...' : '📄 Importar Fuente (.ttf/.woff)'}
+            </button>
+            {customFonts.length > 0 && (
+              <p className="text-xs text-gray-400 mt-1">{customFonts.length} fuente(s) personalizada(s)</p>
+            )}
+          </div>
+
+          <hr />
+
           {/* Bloques de texto */}
           <div>
             <h3 className="font-bold text-xs text-gray-800 mb-2">Elementos de Texto</h3>
@@ -210,6 +309,20 @@ function EditorContent() {
           {selected && (
             <div className="space-y-3 bg-gray-50 p-3 rounded-lg">
               <h4 className="font-bold text-xs text-gray-800">{selected.label}</h4>
+
+              <div>
+                <label className="text-xs text-gray-500">Fuente</label>
+                <select value={selected.fontFamily}
+                  onChange={e => updateBlock(selected.id, 'fontFamily', e.target.value)}
+                  className="w-full px-2 py-1 border rounded text-xs">
+                  {allFonts.map(f => (
+                    <option key={f.name} value={f.url ? f.name : f.name}>
+                      {f.name} {f.url ? '(importada)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="text-xs text-gray-500">Tamaño fuente</label>
                 <input type="range" min="8" max="60" value={selected.fontSize}
@@ -253,9 +366,10 @@ function EditorContent() {
             <p className="font-bold mb-1">Instrucciones:</p>
             <ol className="list-decimal ml-4 space-y-1">
               <li>Sube la imagen de fondo del diploma</li>
+              <li>Importa fuentes personalizadas (opcional)</li>
               <li>Haz clic en un elemento de texto</li>
               <li>Arrástralo sobre la imagen a la posición deseada</li>
-              <li>Ajusta tamaño, color y estilo</li>
+              <li>Ajusta fuente, tamaño, color y estilo</li>
               <li>Guarda las posiciones</li>
             </ol>
           </div>
@@ -274,28 +388,31 @@ function EditorContent() {
                   setSelectedBlock(null);
                 }} />
 
-              {/* Bloques de texto superpuestos */}
-              {blocks.map(b => (
-                <div key={b.id}
-                  onMouseDown={(e) => handleMouseDown(e, b.id)}
-                  className={`absolute cursor-move select-none transition-shadow ${dragging === b.id ? 'ring-2 ring-indigo-500 z-50' : selectedBlock === b.id ? 'ring-2 ring-indigo-300 z-40' : 'hover:ring-1 hover:ring-indigo-200'}`}
-                  style={{
-                    left: `${b.x}%`,
-                    top: `${b.y}%`,
-                    transform: 'translate(-50%, -50%)',
-                    fontSize: `${b.fontSize}px`,
-                    color: b.color,
-                    fontWeight: b.fontWeight,
-                    fontStyle: b.fontStyle,
-                    fontFamily: "'Times New Roman', Georgia, serif",
-                    textShadow: '0 0 4px rgba(255,255,255,0.8), 0 0 8px rgba(255,255,255,0.5)',
-                    whiteSpace: 'nowrap',
-                    padding: '2px 4px',
-                    borderRadius: '2px',
-                  }}>
-                  {b.preview}
-                </div>
-              ))}
+              {blocks.map(b => {
+                const customFont = allFonts.find(f => f.name === b.fontFamily && f.url);
+                const cssFont = customFont ? `'${customFont.name.replace(/[^a-zA-Z0-9]/g, '_')}'` : b.fontFamily;
+                return (
+                  <div key={b.id}
+                    onMouseDown={(e) => handleMouseDown(e, b.id)}
+                    className={`absolute cursor-move select-none transition-shadow ${dragging === b.id ? 'ring-2 ring-indigo-500 z-50' : selectedBlock === b.id ? 'ring-2 ring-indigo-300 z-40' : 'hover:ring-1 hover:ring-indigo-200'}`}
+                    style={{
+                      left: `${b.x}%`,
+                      top: `${b.y}%`,
+                      transform: 'translate(-50%, -50%)',
+                      fontSize: `${b.fontSize}px`,
+                      color: b.color,
+                      fontWeight: b.fontWeight,
+                      fontStyle: b.fontStyle,
+                      fontFamily: customFont ? `${cssFont}, serif` : `${b.fontFamily}, serif`,
+                      textShadow: '0 0 4px rgba(255,255,255,0.8), 0 0 8px rgba(255,255,255,0.5)',
+                      whiteSpace: 'nowrap',
+                      padding: '2px 4px',
+                      borderRadius: '2px',
+                    }}>
+                    {b.preview}
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center text-gray-400">

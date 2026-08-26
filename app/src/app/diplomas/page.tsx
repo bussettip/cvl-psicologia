@@ -15,6 +15,12 @@ interface Diploma {
   taller_fecha: string;
 }
 
+interface CustomFont {
+  name: string;
+  file: string;
+  url: string;
+}
+
 interface TallerInfo {
   diploma_template: string | null;
   diploma_config: any;
@@ -31,6 +37,13 @@ function DiplomasContent() {
   const [diplomas, setDiplomas] = useState<Diploma[]>([]);
   const [loading, setLoading] = useState(true);
   const [tallerInfo, setTallerInfo] = useState<TallerInfo | null>(null);
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+
+  useEffect(() => {
+    fetch('/api/fonts').then(r => r.json()).then(data => {
+      if (data.fonts) setCustomFonts(data.fonts);
+    });
+  }, []);
 
   useEffect(() => {
     if (tallerId) {
@@ -70,19 +83,27 @@ function DiplomasContent() {
     return `${days[d.getDay()]} ${d.getDate()} de ${months[d.getMonth()]} del ${d.getFullYear()}`;
   };
 
+  const buildFontCSS = () => {
+    return customFonts.map(f => {
+      const safeName = f.name.replace(/[^a-zA-Z0-9]/g, '_');
+      const format = f.url.endsWith('.woff2') ? 'woff2' : f.url.endsWith('.woff') ? 'woff' : 'truetype';
+      return `@font-face{font-family:'${safeName}';src:url('${f.url}') format('${format}');}`;
+    }).join('\n');
+  };
+
   const buildDiplomaHTML = (d: Diploma) => {
     const info = tallerInfo;
     if (info?.diploma_template && info?.diploma_config) {
       const config = info.diploma_config;
       const blocks = Array.isArray(config) ? config : [];
       const textLayers = blocks.map((b: any) => {
-        const isDynamic = ['nombre_adolescente', 'nombre_padre', 'titulo_taller', 'fecha_taller'].includes(b.id);
         let text = b.preview;
         if (b.id === 'nombre_adolescente') text = d.nombre_adolescente;
         if (b.id === 'nombre_padre') text = d.nombre_padre || '';
         if (b.id === 'titulo_taller') text = info.titulo || b.preview;
         if (b.id === 'fecha_taller') text = formatDate(info.fecha) || b.preview;
-        return `<div style="position:absolute;left:${b.x}%;top:${b.y}%;transform:translate(-50%,-50%);font-size:${b.fontSize}px;color:${b.color};font-weight:${b.fontWeight};font-style:${b.fontStyle};font-family:'Times New Roman',Georgia,serif;white-space:nowrap;">${text}</div>`;
+        const fontFamily = b.fontFamily || 'Times New Roman';
+        return `<div style="position:absolute;left:${b.x}%;top:${b.y}%;transform:translate(-50%,-50%);font-size:${b.fontSize}px;color:${b.color};font-weight:${b.fontWeight};font-style:${b.fontStyle};font-family:'${fontFamily}',serif;white-space:nowrap;">${text}</div>`;
       }).join('\n');
 
       return `<div style="position:relative;width:210mm;height:297mm;page-break-after:always;overflow:hidden;">
@@ -112,9 +133,8 @@ function DiplomasContent() {
     if (diplomas.length === 0) return;
     const hasTemplate = tallerInfo?.diploma_template && tallerInfo?.diploma_config;
     const contenido = diplomas.map(d => buildDiplomaHTML(d)).join('');
-    const styles = hasTemplate
-      ? `@page{size:landscape;margin:0;}body{margin:0;}`
-      : `@page{size:A4 portrait;margin:0;}body{margin:0;}`;
+    const fontCSS = buildFontCSS();
+    const styles = `${fontCSS}\n${hasTemplate ? '@page{size:landscape;margin:0;}body{margin:0;}' : '@page{size:A4 portrait;margin:0;}body{margin:0;}'}`;
     const win = window.open('', '_blank');
     if (win) {
       win.document.write(`<html><head><title>Diplomas - ${tallerInfo?.titulo || ''}</title><style>${styles}</style></head><body>${contenido}</body></html>`);
@@ -126,9 +146,8 @@ function DiplomasContent() {
   const handleImprimirUno = (d: Diploma) => {
     const contenido = buildDiplomaHTML(d);
     const hasTemplate = tallerInfo?.diploma_template && tallerInfo?.diploma_config;
-    const styles = hasTemplate
-      ? `@page{size:landscape;margin:0;}body{margin:0;}`
-      : `@page{size:A4 portrait;margin:0;}body{margin:0;}`;
+    const fontCSS = buildFontCSS();
+    const styles = `${fontCSS}\n${hasTemplate ? '@page{size:landscape;margin:0;}body{margin:0;}' : '@page{size:A4 portrait;margin:0;}body{margin:0;}'}`;
     const win = window.open('', '_blank');
     if (win) {
       win.document.write(`<html><head><title>Diploma - ${d.nombre_adolescente}</title><style>${styles}</style></head><body>${contenido}</body></html>`);
