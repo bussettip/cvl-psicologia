@@ -16,7 +16,8 @@ export async function GET(req: NextRequest) {
     let query = `
       SELECT c.*, p.nombre as paciente_nombre, p.apellido as paciente_apellido, p.telefono as paciente_telefono,
         u.nombre as autor_nombre, u.apellido as autor_apellido,
-        t.titulo as taller_nombre
+        t.titulo as taller_nombre,
+        (SELECT cb.id FROM comprobantes_bancarios cb WHERE cb.cobro_id = c.id ORDER BY cb.id DESC LIMIT 1) AS comprobante_id
       FROM cobros c
       LEFT JOIN pacientes p ON c.paciente_id = p.id
       LEFT JOIN usuarios u ON c.created_by = u.id
@@ -81,6 +82,18 @@ export async function PUT(req: NextRequest) {
       `UPDATE cobros SET estado=COALESCE(?,estado), metodo_pago=COALESCE(?,metodo_pago), observaciones=COALESCE(?,observaciones) WHERE id=?`,
       [estado, metodo_pago, observaciones, id]
     );
+
+    // Disparar verificación en n8n cuando el pago pasa a "pagado"
+    if (estado === 'pagado') {
+      const n8nUrl = process.env.N8N_PAGO_WEBHOOK_URL;
+      if (n8nUrl) {
+        fetch(n8nUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ evento: 'cobro_pagado', cobro_id: Number(id) }),
+        }).catch(() => {});
+      }
+    }
     
     return NextResponse.json({ message: 'Cobro actualizado' });
   } catch (e: any) {

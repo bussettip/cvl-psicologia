@@ -14,6 +14,7 @@ interface Cobro {
   taller_nombre?: string;
   confirmado_psicologa: boolean; confirmado_psicologa_id: number | null;
   confirmado_psicologa_fecha: string | null;
+  comprobante_id?: number | null;
 }
 interface Entrega {
   id: number; psicologa_id: number; receptor_id: number; monto: number;
@@ -68,6 +69,7 @@ export default function RecepcionPage() {
   const [fechaActual, setFechaActual] = useState(new Date());
   const [diaSeleccionado, setDiaSeleccionado] = useState<string | null>(null);
   const [showCobroForm, setShowCobroForm] = useState(false);
+  const [comprobanteVer, setComprobanteVer] = useState<Cobro | null>(null);
   const [filtroMes, setFiltroMes] = useState(new Date().getMonth() + 1);
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear());
   const [activeTab, setActiveTab] = useState<'cobros'|'entregas'|'gastos'|'citas'|'facturas'>('cobros');
@@ -304,6 +306,19 @@ export default function RecepcionPage() {
       alert('Cobro registrado');
       setShowCobroForm(false);
       setCobroForm({ paciente_id: '', tipo: 'sesion', concepto: '', monto: MONTO_SESION.toString(), metodo_pago: 'efectivo', fecha: '', hora: '', observaciones: '' });
+      loadData();
+    } catch (e: any) { alert('Error: ' + e.message); }
+  };
+
+  const marcarCobroPagado = async (id: number) => {
+    if (!confirm('¿Confirmar este pago y marcarlo como PAGADO?')) return;
+    try {
+      const res = await fetch('/api/cobros', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, estado: 'pagado' })
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      setComprobanteVer(null);
       loadData();
     } catch (e: any) { alert('Error: ' + e.message); }
   };
@@ -1050,6 +1065,13 @@ export default function RecepcionPage() {
                             <span className="text-gray-500">{new Date(c.fecha).toLocaleDateString('es-MX')} • {tipoLabels[c.tipo] || c.tipo}</span>
                             <div className="flex items-center gap-1">
                               <span className="font-bold text-green-600">${Number(c.monto).toLocaleString('es-MX')}</span>
+                              {c.comprobante_id && (
+                                <button onClick={() => setComprobanteVer(c)}
+                                  title="Revisar comprobante de pago"
+                                  className="px-1.5 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[9px] font-medium">
+                                  🧾 Comprobante
+                                </button>
+                              )}
                               <button onClick={() => descargarXLSX(`cobro_${c.id}_${c.fecha}.xlsx`, 'Cobro', filasCobros([c]))}
                                 title="Exportar este cobro a Excel"
                                 className="px-1.5 py-0.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[9px] font-medium">
@@ -1462,6 +1484,42 @@ export default function RecepcionPage() {
         )}
 
       </div>
+
+      {/* Modal Ver Comprobante de Pago */}
+      {comprobanteVer && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">🧾 Comprobante de Pago</h3>
+                <p className="text-xs text-gray-500">
+                  {comprobanteVer.paciente_nombre} {comprobanteVer.paciente_apellido} · {new Date(comprobanteVer.fecha).toLocaleDateString('es-MX')} · ${Number(comprobanteVer.monto).toLocaleString('es-MX')}
+                </p>
+              </div>
+              <button onClick={() => setComprobanteVer(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="flex-1 overflow-auto bg-gray-100">
+              <iframe
+                src={`/api/pago-publico/comprobante?id=${comprobanteVer.comprobante_id}`}
+                title="Comprobante de pago"
+                className="w-full h-[60vh] border-0"
+              />
+            </div>
+            <div className="p-4 border-t flex flex-wrap justify-end items-center gap-2">
+              <a href={`/api/pago-publico/comprobante?id=${comprobanteVer.comprobante_id}`} target="_blank" rel="noopener noreferrer"
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg text-sm font-medium">
+                Abrir en pestaña
+              </a>
+              {comprobanteVer.estado !== 'pagado' && (
+                <button onClick={() => marcarCobroPagado(comprobanteVer.id)}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">
+                  ✅ Marcar como pagado
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Nuevo Cobro */}
       {showCobroForm && (

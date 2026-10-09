@@ -14,6 +14,7 @@ interface Comprobante {
   id: number; banco: string; archivo_pdf: string; nombre_original: string;
   fecha: string | null; monto: number | null; concepto: string;
   autor_nombre: string; autor_apellido: string;
+  cobro_id?: number | null;
 }
 interface Impuesto {
   id: number; concepto: string; tipo: string; monto: number;
@@ -689,9 +690,10 @@ export default function Contabilidad() {
                       {c.monto != null ? `$${Number(c.monto).toLocaleString('es-MX')}` : '—'}
                     </td>
                     <td className="px-4 py-2.5">
-                      {c.archivo_pdf ? (
-                        <a href={c.archivo_pdf} target="_blank" rel="noopener noreferrer"
-                          className="text-indigo-600 hover:underline">📄 {c.nombre_original || 'Ver PDF'}</a>
+                      {c.archivo_pdf || c.cobro_id ? (
+                        <a href={c.archivo_pdf && c.archivo_pdf.startsWith('/uploads/') ? c.archivo_pdf : `/api/pago-publico/comprobante?id=${c.id}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="text-indigo-600 hover:underline">📄 {c.nombre_original || 'Ver archivo'}{c.cobro_id ? ' (pago web)' : ''}</a>
                       ) : '—'}
                     </td>
                     <td className="px-4 py-2.5 text-center">
