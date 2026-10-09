@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import VerificacionComprobantes from '@/components/VerificacionComprobantes';
 
 interface Banco {
   id: number; nombre: string; banco: string; numero_cuenta: string;
@@ -39,7 +40,7 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'
 const BANCOS_COMPROBANTES = ['Bancomer', 'Banamex', 'Santander'];
 
 export default function Contabilidad() {
-  const [tab, setTab] = useState<'bancos' | 'facturas' | 'impuestos' | 'comprobantes'>('bancos');
+  const [tab, setTab] = useState<'bancos' | 'facturas' | 'impuestos' | 'comprobantes' | 'verificacion'>('bancos');
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [data, setData] = useState<ImpuestosData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -206,6 +207,10 @@ export default function Contabilidad() {
         <button onClick={() => setTab('comprobantes')}
           className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'comprobantes' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
           📎 Comprobantes Bancarios
+        </button>
+        <button onClick={() => setTab('verificacion')}
+          className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'verificacion' ? 'bg-rose-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+          ✅ Verificación de Pagos
         </button>
       </div>
 
@@ -712,6 +717,10 @@ export default function Contabilidad() {
             </table>
           </div>
         </div>
+      )}
+
+      {tab === 'verificacion' && (
+        <VerificacionComprobantes />
       )}
 
       {showBancoForm && (

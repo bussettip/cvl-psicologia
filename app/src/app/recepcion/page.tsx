@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import VerificacionComprobantes from '@/components/VerificacionComprobantes';
 
 
 interface Paciente { id: number; nombre: string; apellido: string; telefono: string; }
@@ -72,7 +73,7 @@ export default function RecepcionPage() {
   const [comprobanteVer, setComprobanteVer] = useState<Cobro | null>(null);
   const [filtroMes, setFiltroMes] = useState(new Date().getMonth() + 1);
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear());
-  const [activeTab, setActiveTab] = useState<'cobros'|'entregas'|'gastos'|'citas'|'facturas'>('cobros');
+  const [activeTab, setActiveTab] = useState<'cobros'|'entregas'|'gastos'|'citas'|'facturas'|'verificacion'>('cobros');
 
   const [cobroForm, setCobroForm] = useState({
     paciente_id: '', tipo: 'sesion', concepto: '', monto: MONTO_SESION.toString(),
@@ -981,7 +982,14 @@ export default function RecepcionPage() {
             className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'facturas' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
             🧾 Facturas ({facturas.length})
           </button>
+          <button onClick={() => setActiveTab('verificacion')}
+            className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'verificacion' ? 'bg-rose-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+            ✅ Verificación de Pagos
+          </button>
         </div>
+
+        {/* ==================== TAB: VERIFICACIÓN DE PAGOS ==================== */}
+        {activeTab === 'verificacion' && <VerificacionComprobantes />}
 
         {/* ==================== TAB: COBROS ==================== */}
         {activeTab === 'cobros' && (
