@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
     const estado = searchParams.get('estado');
     const anio = searchParams.get('anio');
     const mes = searchParams.get('mes');
+    const fechaInicio = searchParams.get('fecha_inicio');
+    const fechaFin = searchParams.get('fecha_fin');
 
     let query = `
       SELECT s.*,
@@ -33,6 +35,10 @@ export async function GET(req: NextRequest) {
     const conditions: string[] = [];
 
     if (estado) { conditions.push('s.estado = ?'); params.push(estado); }
+    if (fechaInicio && fechaFin) {
+      conditions.push('DATE(s.created_at) BETWEEN DATE(?) AND DATE(?)');
+      params.push(fechaInicio, fechaFin);
+    }
     if (mes && anio) {
       conditions.push('MONTH(s.created_at) = ? AND YEAR(s.created_at) = ?');
       params.push(Number(mes), Number(anio));

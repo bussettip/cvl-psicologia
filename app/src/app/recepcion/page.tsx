@@ -107,6 +107,13 @@ export default function RecepcionPage() {
   const [filtroFechaInicio, setFiltroFechaInicio] = useState(new Date().toISOString().split('T')[0]);
   const [filtroFechaFin, setFiltroFechaFin] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0]; });
 
+  const [rangoEntregaInicio, setRangoEntregaInicio] = useState('');
+  const [rangoEntregaFin, setRangoEntregaFin] = useState('');
+  const [rangoGastoInicio, setRangoGastoInicio] = useState('');
+  const [rangoGastoFin, setRangoGastoFin] = useState('');
+  const [rangoFacturaInicio, setRangoFacturaInicio] = useState('');
+  const [rangoFacturaFin, setRangoFacturaFin] = useState('');
+
   const [citaVista, setCitaVista] = useState<'lista'|'calendario'>('lista');
   const [calFecha, setCalFecha] = useState(() => new Date().toISOString().split('T')[0]);
 
@@ -178,7 +185,10 @@ export default function RecepcionPage() {
 
   const loadEntregas = async () => {
     try {
-      const res = await fetch(`/api/entregas?mes=${filtroMes}&anio=${filtroAnio}`);
+      const qs = rangoEntregaInicio && rangoEntregaFin
+        ? `fecha_inicio=${rangoEntregaInicio}&fecha_fin=${rangoEntregaFin}`
+        : `mes=${filtroMes}&anio=${filtroAnio}`;
+      const res = await fetch(`/api/entregas?${qs}`);
       const data = await res.json();
       setEntregas(data.entregas || []);
     } catch (e) { console.error(e); }
@@ -186,7 +196,10 @@ export default function RecepcionPage() {
 
   const loadGastos = async () => {
     try {
-      const res = await fetch(`/api/gastos?mes=${filtroMes}&anio=${filtroAnio}`);
+      const qs = rangoGastoInicio && rangoGastoFin
+        ? `fecha_inicio=${rangoGastoInicio}&fecha_fin=${rangoGastoFin}`
+        : `mes=${filtroMes}&anio=${filtroAnio}`;
+      const res = await fetch(`/api/gastos?${qs}`);
       const data = await res.json();
       setGastos(data.gastos || []);
     } catch (e) { console.error(e); }
@@ -194,7 +207,10 @@ export default function RecepcionPage() {
 
   const loadFacturas = async () => {
     try {
-      const res = await fetch(`/api/solicitudes-factura?mes=${filtroMes}&anio=${filtroAnio}`);
+      const qs = rangoFacturaInicio && rangoFacturaFin
+        ? `fecha_inicio=${rangoFacturaInicio}&fecha_fin=${rangoFacturaFin}`
+        : `mes=${filtroMes}&anio=${filtroAnio}`;
+      const res = await fetch(`/api/solicitudes-factura?${qs}`);
       const data = await res.json();
       setFacturas(data.solicitudes || []);
     } catch (e) { console.error(e); }
@@ -209,6 +225,9 @@ export default function RecepcionPage() {
   };
 
   useEffect(() => { loadCitas(); }, [filtroFechaInicio, filtroFechaFin]);
+  useEffect(() => { loadEntregas(); }, [rangoEntregaInicio, rangoEntregaFin]);
+  useEffect(() => { loadGastos(); }, [rangoGastoInicio, rangoGastoFin]);
+  useEffect(() => { loadFacturas(); }, [rangoFacturaInicio, rangoFacturaFin]);
 
   const crearCita = async () => {
     if (!citaForm.paciente_id || !citaForm.psicologa_id || !citaForm.fecha || !citaForm.hora_inicio) {
@@ -820,10 +839,19 @@ export default function RecepcionPage() {
 
   const exportarTabExcel = () => {
     if (activeTab === 'cobros') return descargarXLSX(`cobros_${periodoFiltro}.xlsx`, 'Cobros', filasCobros(cobros));
-    if (activeTab === 'entregas') return descargarXLSX(`entregas_${periodoFiltro}.xlsx`, 'Entregas', filasEntregas(entregas));
-    if (activeTab === 'gastos') return descargarXLSX(`caja_chica_${periodoFiltro}.xlsx`, 'Caja Chica', filasGastos(gastos));
+    if (activeTab === 'entregas') {
+      const etiqueta = rangoEntregaInicio && rangoEntregaFin ? `${rangoEntregaInicio}_a_${rangoEntregaFin}` : periodoFiltro;
+      return descargarXLSX(`entregas_${etiqueta}.xlsx`, 'Entregas', filasEntregas(entregas));
+    }
+    if (activeTab === 'gastos') {
+      const etiqueta = rangoGastoInicio && rangoGastoFin ? `${rangoGastoInicio}_a_${rangoGastoFin}` : periodoFiltro;
+      return descargarXLSX(`caja_chica_${etiqueta}.xlsx`, 'Caja Chica', filasGastos(gastos));
+    }
     if (activeTab === 'citas') return descargarXLSX(`citas_${filtroFechaInicio}_a_${filtroFechaFin}.xlsx`, 'Citas', filasCitas(citas));
-    if (activeTab === 'facturas') return descargarXLSX(`facturas_${periodoFiltro}.xlsx`, 'Facturas', filasFacturas(facturas));
+    if (activeTab === 'facturas') {
+      const etiqueta = rangoFacturaInicio && rangoFacturaFin ? `${rangoFacturaInicio}_a_${rangoFacturaFin}` : periodoFiltro;
+      return descargarXLSX(`facturas_${etiqueta}.xlsx`, 'Facturas', filasFacturas(facturas));
+    }
   };
 
   const metodoLabels: Record<string, string> = {
@@ -1059,13 +1087,31 @@ export default function RecepcionPage() {
         {/* ==================== TAB: ENTREGAS DE DINERO ==================== */}
         {activeTab === 'entregas' && (
           <>
+            <div className="bg-white rounded-xl shadow p-4 mb-6">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm font-medium text-gray-600">📅 Rango de fechas:</span>
+                <input type="date" value={rangoEntregaInicio} onChange={e => setRangoEntregaInicio(e.target.value)}
+                  className="px-3 py-1.5 border rounded-lg text-sm" />
+                <span className="text-gray-400">al</span>
+                <input type="date" value={rangoEntregaFin} onChange={e => setRangoEntregaFin(e.target.value)}
+                  className="px-3 py-1.5 border rounded-lg text-sm" />
+                {(rangoEntregaInicio || rangoEntregaFin) && (
+                  <button onClick={() => { setRangoEntregaInicio(''); setRangoEntregaFin(''); }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">✕ Limpiar</button>
+                )}
+                <span className="text-xs text-gray-400 ml-auto">
+                  {rangoEntregaInicio && rangoEntregaFin ? `${rangoEntregaInicio} a ${rangoEntregaFin}` : `${MESES[filtroMes - 1]} ${filtroAnio}`} • {entregas.length} entrega(s)
+                </span>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
               <div className="bg-white rounded-lg shadow p-3 border-l-4 border-orange-500">
                 <p className="text-xs text-gray-500">Total Entregas Confirmadas</p>
                 <p className="text-xl font-bold text-orange-600">${totalEntregas.toLocaleString('es-MX')}</p>
               </div>
               <div className="bg-white rounded-lg shadow p-3 border-l-4 border-blue-500">
-                <p className="text-xs text-gray-500">Entregas este Mes</p>
+                <p className="text-xs text-gray-500">{rangoEntregaInicio && rangoEntregaFin ? 'Entregas en el periodo' : 'Entregas este Mes'}</p>
                 <p className="text-xl font-bold text-gray-800">{entregas.length}</p>
               </div>
               <div className="bg-white rounded-lg shadow p-3 border-l-4 border-green-500">
@@ -1083,7 +1129,7 @@ export default function RecepcionPage() {
             <div className="bg-white rounded-xl shadow p-4">
               <h3 className="font-bold text-sm text-gray-800 mb-3">Historial de Entregas</h3>
               {entregas.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">Sin entregas registradas este mes</p>
+                <p className="text-xs text-gray-400 italic">{rangoEntregaInicio && rangoEntregaFin ? 'Sin entregas en este periodo' : 'Sin entregas registradas este mes'}</p>
               ) : (
                 <div className="space-y-2">
                   {entregas.map(e => (
@@ -1144,6 +1190,24 @@ export default function RecepcionPage() {
         {/* ==================== TAB: CAJA CHICA ==================== */}
         {activeTab === 'gastos' && (
           <>
+            <div className="bg-white rounded-xl shadow p-4 mb-6">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm font-medium text-gray-600">📅 Rango de fechas:</span>
+                <input type="date" value={rangoGastoInicio} onChange={e => setRangoGastoInicio(e.target.value)}
+                  className="px-3 py-1.5 border rounded-lg text-sm" />
+                <span className="text-gray-400">al</span>
+                <input type="date" value={rangoGastoFin} onChange={e => setRangoGastoFin(e.target.value)}
+                  className="px-3 py-1.5 border rounded-lg text-sm" />
+                {(rangoGastoInicio || rangoGastoFin) && (
+                  <button onClick={() => { setRangoGastoInicio(''); setRangoGastoFin(''); }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">✕ Limpiar</button>
+                )}
+                <span className="text-xs text-gray-400 ml-auto">
+                  {rangoGastoInicio && rangoGastoFin ? `${rangoGastoInicio} a ${rangoGastoFin}` : `${MESES[filtroMes - 1]} ${filtroAnio}`} • {gastos.length} gasto(s)
+                </span>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
               <div className="bg-white rounded-lg shadow p-3 border-l-4 border-red-500">
                 <p className="text-xs text-gray-500">Total Gastos Aprobados</p>
@@ -1155,7 +1219,7 @@ export default function RecepcionPage() {
                 <p className="text-[10px] text-gray-400">{gastos.filter(g => g.estado === 'pendiente').length} gasto(s)</p>
               </div>
               <div className="bg-white rounded-lg shadow p-3 border-l-4 border-indigo-500">
-                <p className="text-xs text-gray-500">Gastos este Mes</p>
+                <p className="text-xs text-gray-500">{rangoGastoInicio && rangoGastoFin ? 'Gastos en el periodo' : 'Gastos este Mes'}</p>
                 <p className="text-xl font-bold text-gray-800">{gastos.length}</p>
               </div>
             </div>
@@ -1163,7 +1227,7 @@ export default function RecepcionPage() {
             <div className="bg-white rounded-xl shadow p-4">
               <h3 className="font-bold text-sm text-gray-800 mb-3">Historial de Gastos</h3>
               {gastos.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">Sin gastos registrados este mes</p>
+                <p className="text-xs text-gray-400 italic">{rangoGastoInicio && rangoGastoFin ? 'Sin gastos en este periodo' : 'Sin gastos registrados este mes'}</p>
               ) : (
                 <div className="space-y-2">
                   {gastos.map(g => (
@@ -1632,6 +1696,24 @@ export default function RecepcionPage() {
       {/* ==================== TAB: FACTURAS ==================== */}
       {activeTab === 'facturas' && (
         <>
+          <div className="bg-white rounded-xl shadow p-4 mb-6">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-medium text-gray-600">📅 Rango de fechas:</span>
+              <input type="date" value={rangoFacturaInicio} onChange={e => setRangoFacturaInicio(e.target.value)}
+                className="px-3 py-1.5 border rounded-lg text-sm" />
+              <span className="text-gray-400">al</span>
+              <input type="date" value={rangoFacturaFin} onChange={e => setRangoFacturaFin(e.target.value)}
+                className="px-3 py-1.5 border rounded-lg text-sm" />
+              {(rangoFacturaInicio || rangoFacturaFin) && (
+                <button onClick={() => { setRangoFacturaInicio(''); setRangoFacturaFin(''); }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">✕ Limpiar</button>
+              )}
+              <span className="text-xs text-gray-400 ml-auto">
+                {rangoFacturaInicio && rangoFacturaFin ? `${rangoFacturaInicio} a ${rangoFacturaFin}` : `${MESES[filtroMes - 1]} ${filtroAnio}`} • {facturas.length} solicitud(es)
+              </span>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
             <div className="bg-white rounded-lg shadow p-3 border-l-4 border-blue-500">
               <p className="text-xs text-gray-500">Total Solicitudes</p>
@@ -1654,7 +1736,7 @@ export default function RecepcionPage() {
           <div className="bg-white rounded-xl shadow p-4">
             <h3 className="font-bold text-sm text-gray-800 mb-3">Historial de Solicitudes de Factura</h3>
             {facturas.length === 0 ? (
-              <p className="text-xs text-gray-400 italic text-center py-6">Sin solicitudes este mes. Usa el botón "Nueva Factura" para crear una.</p>
+              <p className="text-xs text-gray-400 italic text-center py-6">{rangoFacturaInicio && rangoFacturaFin ? 'Sin solicitudes en este periodo.' : 'Sin solicitudes este mes.'} Usa el botón &quot;Nueva Factura&quot; para crear una.</p>
             ) : (
               <div className="space-y-2">
                 {facturas.map(f => (

@@ -5,6 +5,8 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const fecha = searchParams.get('fecha');
+    const fechaInicio = searchParams.get('fecha_inicio');
+    const fechaFin = searchParams.get('fecha_fin');
     const mes = searchParams.get('mes');
     const anio = searchParams.get('anio');
 
@@ -20,6 +22,7 @@ export async function GET(req: NextRequest) {
     const conditions: string[] = [];
 
     if (fecha) { conditions.push('DATE(e.fecha) = DATE(?)'); params.push(fecha); }
+    if (fechaInicio && fechaFin) { conditions.push('DATE(e.fecha) BETWEEN DATE(?) AND DATE(?)'); params.push(fechaInicio, fechaFin); }
     if (mes && anio) { conditions.push('MONTH(e.fecha) = ? AND YEAR(e.fecha) = ?'); params.push(Number(mes), Number(anio)); }
 
     if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
