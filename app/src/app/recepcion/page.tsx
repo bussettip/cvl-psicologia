@@ -78,8 +78,9 @@ export default function RecepcionPage() {
   });
   const [showCorte, setShowCorte] = useState(false);
   const [corteFecha, setCorteFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [corteFechaFin, setCorteFechaFin] = useState(new Date().toISOString().split('T')[0]);
   const [corteTaller, setCorteTaller] = useState('');
-  const [corteData, setCorteData] = useState<{cobros: Cobro[], total: number, porMetodo: Record<string, number>, porTipo: Record<string, number>} | null>(null);
+  const [corteData, setCorteData] = useState<{cobros: Cobro[], total: number, porMetodo: Record<string, number>, porTipo: Record<string, number>, fechaInicio: string, fechaFin: string} | null>(null);
 
   const [showEntregaForm, setShowEntregaForm] = useState(false);
   const [entregaForm, setEntregaForm] = useState({ psicologa_id: '', receptor_id: '', monto: '', fecha: '', hora: '', concepto: '', observaciones: '' });
@@ -659,7 +660,9 @@ export default function RecepcionPage() {
 
   const generarCorte = async () => {
     try {
-      let url = `/api/cobros?fecha=${corteFecha}`;
+      const fechaInicio = corteFecha;
+      const fechaFin = corteFechaFin && corteFechaFin >= corteFecha ? corteFechaFin : corteFecha;
+      let url = `/api/cobros?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`;
       if (corteTaller) url += `&taller_id=${corteTaller}`;
       const res = await fetch(url);
       const data = await res.json();
@@ -671,22 +674,24 @@ export default function RecepcionPage() {
         porMetodo[c.metodo_pago] = (porMetodo[c.metodo_pago] || 0) + Number(c.monto);
         porTipo[c.tipo] = (porTipo[c.tipo] || 0) + Number(c.monto);
       });
-      setCorteData({ cobros: cobrosDia, total, porMetodo, porTipo });
+      setCorteData({ cobros: cobrosDia, total, porMetodo, porTipo, fechaInicio, fechaFin });
       setShowCorte(true);
     } catch (e) { console.error(e); }
   };
 
   const exportarExcel = () => {
     if (!corteData) return;
+    const esRango = corteData.fechaInicio !== corteData.fechaFin;
+    const etiquetaPeriodo = esRango ? `${corteData.fechaInicio} a ${corteData.fechaFin}` : corteData.fechaInicio;
     const BOM = '\uFEFF';
     const rows: string[] = [];
-    rows.push('CORTE DE CAJA DIARIO');
-    rows.push(`Fecha,${corteFecha}`);
+    rows.push('CORTE DE CAJA');
+    rows.push(`Periodo,${etiquetaPeriodo}`);
     rows.push(`Generado por,${user?.nombre} ${user?.apellido}`);
     rows.push(`Fecha/Hora exportación,"${new Date().toLocaleString('es-MX')}"`);
     rows.push('');
     rows.push('RESUMEN');
-    rows.push(`Total del día,${corteData.total}`);
+    rows.push(`Total del periodo,${corteData.total}`);
     rows.push(`Total cobros,${corteData.cobros.length}`);
     rows.push('');
     rows.push('POR MÉTODO DE PAGO');
@@ -707,9 +712,118 @@ export default function RecepcionPage() {
     const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `corte_caja_${corteFecha}${corteTaller ? '_taller'+corteTaller : ''}.csv`;
+    const nombrePeriodo = esRango ? `${corteData.fechaInicio}_a_${corteData.fechaFin}` : corteData.fechaInicio;
+    link.download = `corte_caja_${nombrePeriodo}${corteTaller ? '_taller'+corteTaller : ''}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
+  };
+
+  const descargarXLSX = async (archivo: string, hoja: string, filas: Record<string, unknown>[]) => {
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(filas.length > 0 ? filas : [{ Aviso: 'Sin registros para exportar' }]);
+    XLSX.utils.book_append_sheet(wb, ws, hoja.substring(0, 31));
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = archivo;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const filasCobros = (lista: Cobro[]) => lista.map(c => ({
+    ID: c.id,
+    Fecha: c.fecha,
+    Hora: c.hora || '',
+    Paciente: `${c.paciente_nombre || ''} ${c.paciente_apellido || ''}`.trim(),
+    Taller: c.taller_nombre || '',
+    Tipo: tipoLabels[c.tipo] || c.tipo,
+    Concepto: c.concepto || '',
+    Monto: Number(c.monto),
+    'Método de pago': metodoLabels[c.metodo_pago] || c.metodo_pago,
+    Estado: c.estado,
+    'Confirmado psicóloga': c.confirmado_psicologa ? 'Sí' : 'No',
+    Observaciones: c.observaciones || '',
+  }));
+
+  const filasEntregas = (lista: Entrega[]) => lista.map(e => ({
+    ID: e.id,
+    Fecha: e.fecha,
+    Hora: e.hora || '',
+    De: `${e.solicitante_nombre || ''} ${e.solicitante_apellido || ''}`.trim(),
+    Para: `${e.receptor_nombre || ''} ${e.receptor_apellido || ''}`.trim(),
+    Concepto: e.concepto || '',
+    Monto: Number(e.monto),
+    Estado: e.estado,
+    Firmado: e.firma_digital || 'No',
+    'Fecha firma': e.firma_fecha || '',
+    'Método firma': e.firma_metodo || '',
+    Observaciones: e.observaciones || '',
+  }));
+
+  const filasGastos = (lista: Gasto[]) => lista.map(g => ({
+    ID: g.id,
+    Fecha: g.fecha,
+    Concepto: g.concepto || '',
+    Proveedor: g.proveedor || '',
+    'Solicitado por': `${g.solicitante_nombre || ''} ${g.solicitante_apellido || ''}`.trim(),
+    'Autorizado por': g.autorizador_nombre ? `${g.autorizador_nombre} ${g.autorizador_apellido || ''}`.trim() : '',
+    Monto: Number(g.monto),
+    'Método de pago': metodoLabels[g.metodo_pago] || g.metodo_pago,
+    Estado: g.estado,
+    Firmado: g.firma_digital || 'No',
+    Comprobante: g.comprobante_url || '',
+    Observaciones: g.observaciones || '',
+  }));
+
+  const filasCitas = (lista: Cita[]) => lista.map(c => ({
+    ID: c.id,
+    Fecha: c.fecha,
+    'Hora inicio': c.hora_inicio,
+    'Hora fin': c.hora_fin || '',
+    Paciente: `${c.paciente_nombre || ''} ${c.paciente_apellido || ''}`.trim(),
+    Teléfono: c.paciente_telefono || '',
+    Psicóloga: `${c.psicologa_nombre || ''} ${c.psicologa_apellido || ''}`.trim(),
+    Tipo: c.tipo,
+    Estado: c.estado,
+    Motivo: c.motivo || '',
+    Notas: c.notas || '',
+  }));
+
+  const filasFacturas = (lista: SolicitudFactura[]) => lista.map(f => ({
+    ID: f.id,
+    Serie: f.serie || '',
+    Folio: f.folio ?? '',
+    Fecha: f.created_at ? new Date(f.created_at).toLocaleDateString('es-MX') : '',
+    Paciente: f.paciente_nombre || '',
+    Concepto: f.concepto || '',
+    Cantidad: f.cantidad,
+    Unidad: f.unidad,
+    Subtotal: Number(f.subtotal),
+    IVA: Number(f.iva),
+    Total: Number(f.total),
+    RFC: f.rfc_receptor,
+    'Razón social': f.razon_social_receptor,
+    'Régimen fiscal': f.regimen_fiscal_receptor,
+    'Uso CFDI': f.uso_cfdi,
+    'Forma de pago': f.forma_pago,
+    'Método de pago': f.metodo_pago,
+    Estado: f.estado,
+    UUID: f.uuid || '',
+    Solicitante: `${f.solicitante_nombre || ''} ${f.solicitante_apellido || ''}`.trim(),
+    Validador: f.validador_nombre ? `${f.validador_nombre} ${f.validador_apellido || ''}`.trim() : '',
+    Comentario: f.comentario_supervisora || '',
+    'Error timbrado': f.error_timbrado || '',
+  }));
+
+  const exportarTabExcel = () => {
+    if (activeTab === 'cobros') return descargarXLSX(`cobros_${periodoFiltro}.xlsx`, 'Cobros', filasCobros(cobros));
+    if (activeTab === 'entregas') return descargarXLSX(`entregas_${periodoFiltro}.xlsx`, 'Entregas', filasEntregas(entregas));
+    if (activeTab === 'gastos') return descargarXLSX(`caja_chica_${periodoFiltro}.xlsx`, 'Caja Chica', filasGastos(gastos));
+    if (activeTab === 'citas') return descargarXLSX(`citas_${filtroFechaInicio}_a_${filtroFechaFin}.xlsx`, 'Citas', filasCitas(citas));
+    if (activeTab === 'facturas') return descargarXLSX(`facturas_${periodoFiltro}.xlsx`, 'Facturas', filasFacturas(facturas));
   };
 
   const metodoLabels: Record<string, string> = {
@@ -743,6 +857,7 @@ export default function RecepcionPage() {
   const totalEntregas = entregas.filter(e => e.estado === 'confirmada').reduce((s, e) => s + Number(e.monto), 0);
   const totalGastos = gastos.filter(g => g.estado === 'aprobado' || g.estado === 'pagado').reduce((s, g) => s + Number(g.monto), 0);
   const totalGastosPendientes = gastos.filter(g => g.estado === 'pendiente').reduce((s, g) => s + Number(g.monto), 0);
+  const periodoFiltro = `${filtroAnio}-${String(filtroMes).padStart(2, '0')}`;
 
   if (!mounted) return <div className="flex items-center justify-center min-h-screen"><p className="text-gray-500">Cargando...</p></div>;
 
@@ -791,6 +906,11 @@ export default function RecepcionPage() {
                 🧾 Nueva Factura
               </button>
             )}
+            <button onClick={exportarTabExcel}
+              title="Descargar los registros de esta pestaña en Excel"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">
+              📥 Exportar a Excel
+            </button>
           </div>
         </div>
       </header>
@@ -902,6 +1022,11 @@ export default function RecepcionPage() {
                             <span className="text-gray-500">{new Date(c.fecha).toLocaleDateString('es-MX')} • {tipoLabels[c.tipo] || c.tipo}</span>
                             <div className="flex items-center gap-1">
                               <span className="font-bold text-green-600">${Number(c.monto).toLocaleString('es-MX')}</span>
+                              <button onClick={() => descargarXLSX(`cobro_${c.id}_${c.fecha}.xlsx`, 'Cobro', filasCobros([c]))}
+                                title="Exportar este cobro a Excel"
+                                className="px-1.5 py-0.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[9px] font-medium">
+                                📊
+                              </button>
                               <button onClick={() => imprimirHardcopyCobro(c)}
                                 className="px-1.5 py-0.5 bg-gray-500 hover:bg-gray-600 text-white rounded text-[9px] font-medium">
                                 🖨️
@@ -1002,6 +1127,11 @@ export default function RecepcionPage() {
                           className="px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-[10px] font-medium">
                           🖨️ Imprimir
                         </button>
+                        <button onClick={() => descargarXLSX(`entrega_${e.id}_${e.fecha}.xlsx`, 'Entrega', filasEntregas([e]))}
+                          title="Exportar esta entrega a Excel"
+                          className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] font-medium">
+                          📊 Excel
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1085,6 +1215,11 @@ export default function RecepcionPage() {
                         <button onClick={() => imprimirHardcopy(g)}
                           className="px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-[10px] font-medium">
                           🖨️ Imprimir
+                        </button>
+                        <button onClick={() => descargarXLSX(`gasto_${g.id}_${g.fecha}.xlsx`, 'Gasto', filasGastos([g]))}
+                          title="Exportar este gasto a Excel"
+                          className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] font-medium">
+                          📊 Excel
                         </button>
                       </div>
                     </div>
@@ -1178,6 +1313,11 @@ export default function RecepcionPage() {
                             {c.motivo && <p className="text-gray-400 mt-0.5 truncate">{c.motivo}</p>}
                           </div>
                           <div className="flex items-center gap-2">
+                            <button onClick={() => descargarXLSX(`cita_${c.id}_${c.fecha}.xlsx`, 'Cita', filasCitas([c]))}
+                              title="Exportar esta cita a Excel"
+                              className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] font-medium">
+                              📊 Excel
+                            </button>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${estadoColors[c.estado] || 'bg-gray-100 text-gray-700'}`}>
                               {c.estado.replace('_', ' ')}
                             </span>
@@ -1373,15 +1513,22 @@ export default function RecepcionPage() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-gray-800">📊 Corte de Caja Diario</h3>
+                <h3 className="text-lg font-bold text-gray-800">📊 Corte de Caja</h3>
                 <button onClick={() => { setShowCorte(false); setCorteData(null); }} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
               </div>
               <div className="mb-4">
-                <label className="text-xs text-gray-600 font-medium">Fecha del corte</label>
-                <div className="flex gap-2 mt-1">
+                <label className="text-xs text-gray-600 font-medium">Rango de fechas del corte</label>
+                <div className="flex items-center gap-2 mt-1">
                   <input type="date" value={corteFecha} onChange={e => setCorteFecha(e.target.value)}
                     className="flex-1 px-3 py-2 border rounded-lg text-sm" />
+                  <span className="text-gray-400 text-sm">al</span>
+                  <input type="date" value={corteFechaFin} min={corteFecha} onChange={e => setCorteFechaFin(e.target.value)}
+                    className="flex-1 px-3 py-2 border rounded-lg text-sm" />
                 </div>
+                <button onClick={() => { const hoy = new Date().toISOString().split('T')[0]; setCorteFecha(hoy); setCorteFechaFin(hoy); }}
+                  className="mt-1 text-[11px] text-indigo-600 hover:text-indigo-800 font-medium">
+                  Usar solo hoy
+                </button>
               </div>
               <div className="mb-4">
                 <label className="text-xs text-gray-600 font-medium">Filtrar por Taller (opcional)</label>
@@ -1405,9 +1552,14 @@ export default function RecepcionPage() {
               </div>
               {corteData && (
                 <div>
+                  <p className="text-xs text-gray-500 mb-2">
+                    📅 Periodo: <span className="font-semibold text-gray-700">
+                      {corteData.fechaInicio === corteData.fechaFin ? corteData.fechaInicio : `${corteData.fechaInicio} al ${corteData.fechaFin}`}
+                    </span>
+                  </p>
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                      <p className="text-xs text-gray-500">Total del Día</p>
+                      <p className="text-xs text-gray-500">Total del Periodo</p>
                       <p className="text-xl font-bold text-green-700">${corteData.total.toLocaleString('es-MX')}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
@@ -1440,7 +1592,7 @@ export default function RecepcionPage() {
                   <div>
                     <h4 className="font-bold text-xs text-gray-700 mb-2">Detalle de Cobros</h4>
                     {corteData.cobros.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">Sin cobros en esta fecha</p>
+                      <p className="text-xs text-gray-400 italic">Sin cobros en este periodo</p>
                     ) : (
                       <div className="space-y-1 max-h-48 overflow-y-auto">
                         {corteData.cobros.map(c => (
@@ -1539,6 +1691,11 @@ export default function RecepcionPage() {
                         'bg-orange-100 text-orange-700'
                       }`}>{f.estado}</span>
                       <div className="flex flex-col gap-1">
+                        <button onClick={() => descargarXLSX(`factura_${f.id}${f.serie ? `_${f.serie}${f.folio ? '-' + f.folio : ''}` : ''}.xlsx`, 'Factura', filasFacturas([f]))}
+                          title="Exportar esta factura a Excel"
+                          className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] font-medium">
+                          📊 Excel
+                        </button>
                         {f.pdf_path && (
                           <a href={`/${f.pdf_path}`} target="_blank" rel="noopener noreferrer"
                             className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-medium text-center">
